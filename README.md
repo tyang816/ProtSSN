@@ -36,7 +36,7 @@ conda install --yes --file requirements.txt
 # or pip install -r requirements.txt
 ```
 
-**if you are a Linux user, can use download the enviroment we prepared,** our CUDA version is 11.6.
+**if you are a Linux user, you can use download the enviroment we prepared.** Our CUDA version is 11.6.
 
 ```shell
 wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/protein.tar.gz
@@ -82,13 +82,14 @@ Ensembling models can achieve better results, and given our lower reasoning cost
 `ProtSSN.tar` contains all the model checkpoints, our **training records** and **configs** can be found in `model/history` and `model/config`.
 
 ```shell
-wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/ProtSSN.tar
-tar -xvf ProtSSN.tar
+wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/ProtSSN.model.tar
+tar -xvf ProtSSN.model.tar
+rm ProtSSN.model.tar
 ```
 
 ### Prepare Your Own Dataset
 
-Here is a subset of ProtetinGym as the basic sample for mutation prediction in `data/mutant_example`, the files should be arranged in the following format:
+Here is a subset of ProtetinGym as the basic sample for mutation prediction in [`data/mutant_example`](https://github.com/tyang816/ProtSSN/tree/master/data/mutant_example), the files should be arranged in the following format:
 
 ```
 data/proteingym-benchmark
@@ -149,11 +150,12 @@ python src/build_sav.py -d data/mutant_example/no_exp
 We use `CATH` for pre-training, you can find more details in https://www.cathdb.info/.
 
 ```shell
-mkdir data
-cd data
+mkdir -p data/cath
+cd data/cath
 wget https://huggingface.co/datasets/tyang816/cath/blob/main/dompdb.tar
 # or wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/dompdb.tar
 tar -xvf dompdb.tar
+rm dompdb.tar
 ```
 
 ### Build CATH Graph (optional)
