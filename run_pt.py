@@ -168,7 +168,7 @@ def train_model(args, plm_model, gnn_model,
                 accelerator=None, metrics_dict=None, 
                 train_data=None, valid_data=None,
                 monitor="valid_loss", mode="min"):
-    history = {"spearman": []}
+    history = {}
     start_epoch = 1
     logger.info("***** Running training *****")
     if args.auto_continue_train:
@@ -235,13 +235,12 @@ def train_model(args, plm_model, gnn_model,
                 }, model_path)
             print(f"<<<<<< reach best {monitor} : {'%.3f'%arr_scores[best_score_idx]} >>>>>>")
         
+        history_df = pd.DataFrame(history)
+        history_df.to_csv(os.path.join(args.model_dir, "history.csv"), index=False)
+        
         if args.patience > 0 and len(arr_scores) - best_score_idx > args.patience:
             print(f"<<<<<< {monitor} without improvement in {args.patience} epoch, early stopping >>>>>>")
             break
-                
-        history_df = pd.DataFrame(history)
-        history_df.to_csv(os.path.join(args.model_dir, "history.csv"), index=False)
-    
 
 
 def create_parser():
@@ -283,9 +282,16 @@ if __name__ == "__main__":
     args.gnn_config = yaml.load(open(args.gnn_config), Loader=yaml.FullLoader)[args.gnn]
     args.gnn_config["hidden_channels"] = args.gnn_hidden_dim
     args.n_gpu = torch.cuda.device_count()
-
     # load dataset
+    logger.info("***** Loading Dataset *****")
     train_dataset, valid_dataset = prepare_train_val_dataset(args)
+
+    logger.info("***** Sample Data *****")
+    # sample 3 data
+    for _ in range(3):
+        i = random.randint(0, len(train_dataset)-1)
+        print(f">>> {train_dataset[i]}")
+    
     def collect_fn(batch):
         return batch
     cath_dataloader = lambda dataset: DataLoader(

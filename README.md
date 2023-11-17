@@ -26,7 +26,7 @@ Please make sure you have installed **[Anaconda3](https://www.anaconda.com/downl
 
 **If you already have a enviroment.**
 
-We recommend that the `torch_ geometric` should been updated to 2.3 or higher.
+We recommend that the `torch_geometric` should been updated to 2.3 or higher.
 
 **If you don't have a enviroment.**
 
@@ -40,7 +40,7 @@ conda install --yes --file requirements.txt
 
 ```shell
 wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/protein.tar.gz
-makdir <your conda path>/envs/protssn
+mkdir -p <your conda path>/envs/protssn
 tar -xzvf protein.tar.gz -C <your conda path>/envs/protssn
 rm protein.tar.gz
 conda activate protssn
@@ -72,7 +72,7 @@ If you only want to only use **one model** for reasoning, we recommend using **k
 | k30_h1280 | 184     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k30_h1280.pt |
 
 ```shell
-makdir model
+mkdir model
 cd model
 wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k20_h512.pt
 ```

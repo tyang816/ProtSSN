@@ -133,7 +133,7 @@ class CathDataset(InMemoryDataset):
                  divide_num: int = 1,
                  divide_idx: int = 0,
                  set_length: int = 500,
-                 num_val: int = 1000,
+                 num_val: int = 10,
                  is_normalize: bool = True,
                  normalize_file: str = None,
                  p: float = 0.5,
@@ -182,10 +182,10 @@ class CathDataset(InMemoryDataset):
         self.biopython_parser = PDBParser()
 
         super().__init__(root, transform, pre_transform, pre_filter)
-
-        self.data, self.slices = torch.load(
-            self.processed_paths[self.splits.index(self.split)])
-        self.nums_amino_cum = self.slices['x']
+        self.dataset = torch.load(self.processed_paths[self.splits.index(self.split)])
+        # self.data, self.slices = torch.load(
+        #     self.processed_paths[self.splits.index(self.split)])
+        # self.nums_amino_cum = self.slices['x']
 
     @property
     def raw_file_names(self) -> str:
@@ -284,8 +284,8 @@ class CathDataset(InMemoryDataset):
                 data_list = [d for d in data_list if self.pre_filter(d)]
             if self.pre_transform is not None:
                 data_list = [self.pre_transform(d) for d in data_list]
-            self.collate(data_list)
-            torch.save(self.collate(data_list), self.processed_paths[k])
+
+            torch.save(data_list, self.processed_paths[k])
 
     def generate_protein_graph(self):
         names = os.listdir(self.raw_file_names)
@@ -636,7 +636,7 @@ class CathDataset(InMemoryDataset):
         return rec, coords, c_alpha_coords, n_coords, c_coords,seq
 
     def len(self):
-        return len(self.slices['x']) - 1
+        return len(self.dataset)
 
     def get_statistic_info(self):
         node_num = torch.zeros(self.length_total)
@@ -693,17 +693,18 @@ class CathDataset(InMemoryDataset):
         return multant_rep
 
     def get(self, idx):
-        idx_protein = idx
-        idx_x0, idx_x1 = self.slices['x'][idx_protein], self.slices['x'][idx_protein + 1]
-        idx_edge0, idx_edge1 = self.slices['edge_index'][idx_protein], self.slices['edge_index'][idx_protein + 1]
+        # idx_protein = idx
+        # idx_x0, idx_x1 = self.slices['x'][idx_protein], self.slices['x'][idx_protein + 1]
+        # idx_edge0, idx_edge1 = self.slices['edge_index'][idx_protein], self.slices['edge_index'][idx_protein + 1]
         
-        data = Data(
-            x=self.data.x[idx_x0:idx_x1, :],
-            pos=self.data.pos[idx_x0:idx_x1, :],
-            edge_index=self.data.edge_index[:, idx_edge0:idx_edge1],
-            edge_attr=self.data.edge_attr[idx_edge0:idx_edge1, :],
-            lenth=idx_x1-idx_x0
-        )
+        # data = Data(
+        #     x=self.data.x[idx_x0:idx_x1, :],
+        #     pos=self.data.pos[idx_x0:idx_x1, :],
+        #     edge_index=self.data.edge_index[:, idx_edge0:idx_edge1],
+        #     edge_attr=self.data.edge_attr[idx_edge0:idx_edge1, :],
+        #     lenth=idx_x1-idx_x0
+        # )
+        data = self.dataset[idx]
 
         token_len = data.x.shape[0]
         data.y = data.x[:token_len, :self.num_residue_type].argmax(1)
@@ -712,14 +713,9 @@ class CathDataset(InMemoryDataset):
             noisey = data.x[:, :20].argmax(dim=1)
             noisey[multant_pos] = multant_trg
             data.x[:,:20] = F.one_hot(noisey, num_classes=20)
-                
+        
         return data
     
-    def get_lenth(self):
-        lenth = []
-        for i in range(len(self.slices['x'])-1):
-            lenth.append(int(self.slices['x'][i + 1] - self.slices['x'][i]))
-        return lenth
 
     def find_idx(self, idx_protein, amino_idx):
         idx = (self.distances[idx_protein][:-1, amino_idx]< self.micro_radius).nonzero(as_tuple=True)[0]

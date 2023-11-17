@@ -1,4 +1,4 @@
-K=20
+K=10
 H=512
 
 CUDA_VISIBLE_DEVICES=0 \
@@ -18,6 +18,6 @@ python run_pt.py \
     --num_train_epochs 100 \
     --batch_token_num 1024 \
     --max_grad_norm 4 \
-    --gradient_accumulation_steps 10 \
+    --gradient_accumulation_steps 5 \
     --patience 20 \
     --model_dir debug/model/"k"$K"_h"$H
