@@ -31,9 +31,9 @@ We recommend that the `torch_geometric` should been updated to 2.3 or higher.
 **If you don't have a enviroment.**
 
 ```shell
-conda create -n protssn python==3.10
-conda install --yes --file requirements.txt
+conda env create -f protssn.yml
 # or pip install -r requirements.txt
+conda activate protssn
 ```
 
 **if you are a Linux user, you can use download the enviroment we prepared.** Our CUDA version is 11.6.
