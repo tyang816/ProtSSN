@@ -120,5 +120,5 @@ class EGNN(nn.Module):
         x = input_x[:, 3:]
         x = self.droplayer(x)
         x = self.lin(x)
-        return x
         
+        return x, input_x[:, 3:]

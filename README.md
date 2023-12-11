@@ -110,23 +110,20 @@ data/proteingym-benchmark
 The following script can be found at `script/zeroshot_predict.sh`, more details can be found at `zeroshot_predict.py`. We recommend using ensemble method for inference, which can be completed with a single RTX3080.
 
 ```shell
+# k in (10, 20, 30)
+# h in (512, 768, 1280)
+# use single model for inference (default)
 DATASET=proteingym-benchmark
-
-# use single model for inference
-K=10
-H=512
-
 CUDA_VISIBLE_DEVICES=0 python zeroshot_predict.py \
-    --gnn_model_dir model/ \
-    --gnn_hidden_dim $H \
-    --c_alpha_max_neighbors $K \
+    --gnn_model_name k10_h512 \
     --mutant_dataset_dir data/mutant_example/$DATASET \
     --result_dir result/$DATASET
 
-# use ensemble model for inference
-# all models (9) will make predictions
+
+# select the models for ensemble prediction
+DATASET=proteingym-benchmark
 CUDA_VISIBLE_DEVICES=0 python zeroshot_predict.py \
-    --gnn_model_dir model/ \
+    --gnn_model_name k10_h512 k20_h512 k30_h512 k10_h768 k20_h768 k30_h768 k10_h1280 k20_h1280 k30_h1280 \
     --use_ensemble \
     --mutant_dataset_dir data/mutant_example/$DATASET \
     --result_dir result/$DATASET
@@ -141,6 +138,44 @@ You can use the following script to construct data for **single point saturation
 ```shell
 python src/build_sav.py -d data/mutant_example/no_exp
 # output: A0A5J4FAY1_MICAE contains 14193
+```
+
+## 🔬 Get Embeddings for Analysis
+
+Perhaps you need protein embeddings for evolutionary or other direction analysis.
+
+### Prepare Your Own Dataset
+
+Here is a basic sample for embedding extraction in [`data/mutant_example`](https://github.com/tyang816/ProtSSN/tree/master/data/mutant_example), the files should be arranged in the following format:
+```
+data/proteingym-benchmark
+|——DATASET
+|——|——Protein1
+|——|——|——Protein1.fasta
+|——|——|——Protein1.pdb
+|——|——|——Protein1.tsv (no need)
+|——|——Protein2
+|——|——...
+```
+
+### Start Extracting Embeddings
+
+```shell
+DATASET=proteingym-benchmark
+CUDA_VISIBLE_DEVICES=0 python get_embedding.py \
+    --gnn_model_name k10_h512 k20_h512 \
+    --mutant_dataset_dir data/mutant_example/$DATASET \
+    --result_dir result/embed/$DATASET
+```
+
+The output file is `<model>.pt` which is the following format: 
+
+```shell
+{
+    protein1: {"esm_embed": esm_embed, "gnn_embed": gnn_embed}, 
+    protein2: {"esm_embed": esm_embed, "gnn_embed": gnn_embed},
+    ...
+}
 ```
 
 ## ✏️ Pre-train From Scratch
@@ -211,6 +246,13 @@ python run_pt.py \
 Please cite our work if you have used our code or data for **dry experiment testing/wet experiment directed evolution**. We are pleased to see improvements in the subsequent work.
 
 ```
-
+@article{tan2023protssn,
+  title={Semantical and Topological Protein Encoding Toward Enhanced Bioactivity and Thermostability},
+  author={Tan, Yang and Zhou, Bingxin and Zheng, Lirong and Fan, Guisheng and Hong, Liang},
+  journal={bioRxiv},
+  pages={2023--12},
+  year={2023},
+  publisher={Cold Spring Harbor Laboratory}
+}
 ```
 

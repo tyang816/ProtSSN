@@ -1,19 +1,17 @@
-DATASET=proteingym-benchmark
-
+# k in (10, 20, 30)
+# h in (512, 768, 1280)
 # use single model for inference (default)
-K=10
-H=512
-
+DATASET=proteingym-benchmark
 CUDA_VISIBLE_DEVICES=0 python zeroshot_predict.py \
-    --gnn_model_dir model/ \
-    --gnn_hidden_dim $H \
-    --c_alpha_max_neighbors $K \
+    --gnn_model_name k10_h512 \
     --mutant_dataset_dir data/mutant_example/$DATASET \
     --result_dir result/$DATASET
 
-# use ensemble model for inference
+
+# select the models for ensemble prediction
+DATASET=proteingym-benchmark
 CUDA_VISIBLE_DEVICES=0 python zeroshot_predict.py \
-    --gnn_model_dir model/ \
+    --gnn_model_name k10_h512 k20_h512 k30_h512 k10_h768 k20_h768 k30_h768 k10_h1280 k20_h1280 k30_h1280 \
     --use_ensemble \
     --mutant_dataset_dir data/mutant_example/$DATASET \
     --result_dir result/$DATASET

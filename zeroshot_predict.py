@@ -57,14 +57,12 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
     protein_num = len(protein_names)
     spear_cor = np.zeros(protein_num)
     mutation_num = []
-    if args.score_name is None:
-        args.score_name = f"ProtSSN_k{args.c_alpha_max_neighbors}_h{args.gnn_hidden_dim}" 
 
     with torch.no_grad():
         for data in loader:
             protein_idx = data.protein_idx
             graph_data = plm_model(data)
-            out = gnn_model(graph_data)
+            out, _ = gnn_model(graph_data)
             
             seq = "".join([amino_acids_type[i] for i in data.y])
             out = torch.log(softmax(out[:, :20]) + 1e-9)
@@ -102,7 +100,7 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
             }
             total_result = pd.DataFrame(total_result)
             total_result.to_csv(args.score_info, index=False)
-    print(f">>> {args.score_name} average spearmanr: {spear_cor.mean()}")
+    print(f">>> {args.score_name} average spearmanr: {spear_cor.mean()}\n")
 
 def ensemble(args):
     print("----------------- Ensemble -----------------")
@@ -117,16 +115,17 @@ def ensemble(args):
     sp_score = spearmanr(result_df["score"], result_df["ensemble"]).correlation
     print(">>> Ensemble spearmanr: ", sp_score)
 
-def prepare(args, dataset_name):
-    args.mutant_name = f"{dataset_name}_k{args.c_alpha_max_neighbors}"
+def prepare(args, dataset_name, k, h):
+    # for build dataset
+    args.mutant_name = f"{dataset_name}_k{k}"
     mutant_dataset = build_mutant_dataset(args)
     protein_names = mutant_dataset.protein_names
     print(f">>> Protein names: {protein_names}")
     mutant_loader = DataLoader(mutant_dataset, batch_size=1, shuffle=False)
     print(f">>> Number of proteins: {len(mutant_dataset)}")
     gnn_model = GNN_model(args)
-    print(f">>> k{args.c_alpha_max_neighbors}_h{args.gnn_hidden_dim} {param_num(gnn_model)}")
-    gnn_model_path = os.path.join(args.gnn_model_dir, f"protssn_k{args.c_alpha_max_neighbors}_h{args.gnn_hidden_dim}.pt")
+    print(f">>> k{k}_h{h} {param_num(gnn_model)}")
+    gnn_model_path = os.path.join(args.gnn_model_dir, f"protssn_k{k}_h{h}.pt")
     gnn_model.load_state_dict(torch.load(gnn_model_path))
     return args, mutant_loader, protein_names, gnn_model
 
@@ -135,7 +134,7 @@ def create_parser():
     parser.add_argument("--gnn", type=str, default="egnn", help="gat, gcn, or egnn")
     parser.add_argument("--gnn_config", type=str, default="src/config/egnn.yaml", help="gnn config")
     parser.add_argument("--gnn_model_dir", type=str, default="model/", help="test model name")
-    parser.add_argument("--gnn_hidden_dim", type=int, default=512, choices=[512, 768, 1280], help="hidden size of gnn")
+    parser.add_argument("--gnn_model_name", type=str, default=None, nargs="+", help="test model name")
     
     parser.add_argument("--plm", type=str, default="facebook/esm2_t33_650M_UR50D", help="esm param number")
     parser.add_argument("--use_ensemble", action="store_true", help="use ensemble model")
@@ -143,10 +142,8 @@ def create_parser():
     # dataset 
     parser.add_argument("--mutant_dataset_dir", type=str, default="data/evaluation", help="mutation dataset")
     parser.add_argument("--mutant_name", type=str, default=None, help="name of mutation dataset")
-    parser.add_argument("--c_alpha_max_neighbors", type=int, default=10, choices=[10, 20, 30], help="K of dataset")
     
     parser.add_argument("--score_info", type=str, default=None, help="the model output spearmanr score file")
-    parser.add_argument("--score_name", type=str, default=None, help="the model output col name")
     parser.add_argument("--result_dir", type=str, default="result/", help="the result output path")
     
     args = parser.parse_args()
@@ -161,26 +158,20 @@ if __name__ == "__main__":
     args.plm_hidden_size = plm_model.model.config.hidden_size
     dataset_name = args.mutant_dataset_dir.split("/")[-1]
     os.makedirs(args.result_dir, exist_ok=True)
-        
-    if args.use_ensemble:
-        for k in [10, 20, 30]:
-            for h in [512, 768, 1280]:
-                print(f"--------------- ProtSSN k{k}_h{h} ---------------")
-                args.gnn_hidden_dim, args.c_alpha_max_neighbors = h, k
-                args.gnn_config["hidden_channels"] = args.gnn_hidden_dim
-                args, mutant_loader, protein_names, gnn_model = prepare(args, dataset_name)
-                predict(
-                    args,
-                    plm_model=plm_model, gnn_model=gnn_model, 
-                    loader=mutant_loader, protein_names=protein_names
-                )
-        ensemble(args)
-    else:
-        print(f"--------------- ProtSSN k{args.c_alpha_max_neighbors}_h{args.gnn_hidden_dim} ---------------")
-        args.gnn_config["hidden_channels"] = args.gnn_hidden_dim
-        args, mutant_loader, protein_names, gnn_model = prepare(args, dataset_name)
+    
+    for gnn in args.gnn_model_name:
+        k, h = gnn.split("_")
+        k, h = int(k[1:]), int(h[1:])
+        print(f"--------------- ProtSSN k{k}_h{h} ---------------")
+        assert k in [10, 20, 30], f"Invalid k: {k}"
+        assert h in [512, 768, 1280], f"Invalid h: {h}"
+        args.gnn_config["hidden_channels"] = h
+        args.c_alpha_max_neighbors = k
+        args.score_name = f"ProtSSN_k{k}_h{h}"
+        args, mutant_loader, protein_names, gnn_model = prepare(args, dataset_name, k, h)
         predict(
-            args,
-            plm_model=plm_model, gnn_model=gnn_model, 
+            args=args, plm_model=plm_model, gnn_model=gnn_model, 
             loader=mutant_loader, protein_names=protein_names
         )
+    if args.use_ensemble:
+        ensemble(args)
