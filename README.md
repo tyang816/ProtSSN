@@ -10,6 +10,16 @@ We focus on using end-to-end methods for protein directed evolution in zero samp
 
 ## 📑 Results
 
+### New Reults (update. 2023.12.23)
+
+😁 Congratulations! 
+
+Our **ensemble ProtSSN** achieved **first place** on new **ProteinGym,** with an average spearman score of **0.473.** Our **single ProtSSN** also achieved a score of **0.465**. 
+
+You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
+
+### Paper Results
+
 We conducted tests on **ProteinGym** and compared it with the non-MSA method. Meanwhile, due to the fusion of structural information, we also conducted tests on two newly constructed stability datasets, **DTm** and **DDG**, in order to verify the correlation between structure and stability.
 
 <img src="img/tab3.png" alt="tab3">
@@ -31,8 +41,7 @@ We recommend that the `torch_geometric` should been updated to 2.3 or higher.
 **If you don't have a enviroment.**
 
 ```shell
-conda env create -f protssn.yml
-# or pip install -r requirements.txt
+conda env create -f environment.yaml
 conda activate protssn
 ```
 
@@ -95,7 +104,6 @@ Here is a subset of ProtetinGym as the basic sample for mutation prediction in [
 data/proteingym-benchmark
 |——DATASET
 |——|——Protein1
-|——|——|——Protein1.fasta
 |——|——|——Protein1.pdb
 |——|——|——Protein1.tsv
 |——|——Protein2
@@ -151,7 +159,6 @@ Here is a basic sample for embedding extraction in [`data/mutant_example`](https
 data/proteingym-benchmark
 |——DATASET
 |——|——Protein1
-|——|——|——Protein1.fasta
 |——|——|——Protein1.pdb
 |——|——|——Protein1.tsv (no need)
 |——|——Protein2

@@ -246,6 +246,10 @@ class MutantDataset(Dataset):
 
         for idx, name in enumerate(tqdm(names)):
             protein_dir = os.path.join(self.raw_dir, name)
+            
+            if os.path.exists(os.path.join(self.saved_graph_path, name + '.pt')):
+                continue
+            
             if not os.path.isdir(protein_dir):
                 continue
             pdb_suffix = ".pdb"
@@ -262,8 +266,7 @@ class MutantDataset(Dataset):
                 self.wrong_proteins.append(name)
                 continue
             rec_graph.protein_idx = idx
-            torch.save(rec_graph, os.path.join(
-                self.saved_graph_path, name + '.pt'))
+            torch.save(rec_graph, os.path.join(self.saved_graph_path, name + '.pt'))
 
     def rec_residue_featurizer(self, rec, one_hot=True, add_feature=None):
         num_res = len([_ for _ in rec.get_residues()])

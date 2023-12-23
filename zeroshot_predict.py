@@ -61,29 +61,41 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
     with torch.no_grad():
         for data in loader:
             protein_idx = data.protein_idx
+            protein_name = protein_names[protein_idx]
             graph_data = plm_model(data)
             out, _ = gnn_model(graph_data)
             
             seq = "".join([amino_acids_type[i] for i in data.y])
             out = torch.log(softmax(out[:, :20]) + 1e-9)
-            mutant_file = os.path.join(args.mutant_dataset_dir, "DATASET", protein_names[data.protein_idx], f"{protein_names[data.protein_idx]}.tsv")
-            mutant_df = pd.read_table(mutant_file)
-            mutant_df[args.score_name] = mutant_df["mutant"].apply(
-                lambda x: label_row(x, seq, out.cpu().numpy())
+            
+            mutant_file_tsv = os.path.join(args.mutant_dataset_dir, "DATASET", protein_name, f"{protein_name}.tsv")
+            mutant_file_csv = os.path.join(args.mutant_dataset_dir, "DATASET", protein_name, f"{protein_name}.csv")
+            if os.path.exists(mutant_file_tsv):
+                mutant_df = pd.read_table(mutant_file_tsv)
+            elif os.path.exists(mutant_file_csv):
+                mutant_df = pd.read_csv(mutant_file_csv)
+            else:
+                raise ValueError(f"Invalid file: {mutant_file_tsv} or {mutant_file_csv}")
+            if protein_name == "A0A140D2T1_ZIKV_Sourisseau_2019":
+                offset = 291
+            else:
+                offset = 1
+            mutant_df[args.score_name] = mutant_df[args.mutant_pos_col].apply(
+                lambda x: label_row(x, seq, out.cpu().numpy(), offset)
             )
-            result_file = os.path.join(args.result_dir, protein_names[data.protein_idx] + "_labeled.tsv")
+            result_file = os.path.join(args.result_dir, protein_name + "_labeled.csv")
             if not os.path.exists(result_file):
-                mutant_df.to_csv(result_file, sep="\t", index=False)
+                mutant_df.to_csv(result_file, index=False)
                 
-            result = pd.read_table(result_file)
+            result = pd.read_csv(result_file)
             result[args.score_name] = mutant_df[args.score_name]
-            result.to_csv(result_file, sep="\t", index=False)
+            result.to_csv(result_file, index=False)
             
             mutation_num.append(len(result))
             spear_cor[protein_idx] = spearmanr(
-                result["score"], result[args.score_name]
+                result[args.mutant_score_col], result[args.score_name]
             ).correlation
-            print(f"-> {protein_names[protein_idx]}: {spear_cor[protein_idx]}; mutant_num: {len(result)}")
+            print(f"-> {protein_name}: {spear_cor[protein_idx]}; mutant_num: {len(result)}")
             if spear_cor[protein_idx] is nan:
                 spear_cor[protein_idx] = 0
     
@@ -105,15 +117,17 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
 def ensemble(args):
     print("----------------- Ensemble -----------------")
     result_files = os.listdir(args.result_dir)
+    sp_scores = []
     for file in tqdm(result_files):
         result_file = os.path.join(args.result_dir, file)
-        result_df = pd.read_table(result_file)
+        result_df = pd.read_csv(result_file)
         models_pred = [result_df[col].to_list() for col in result_df.columns if col.startswith("ProtSSN")]
         ensemble_pred = np.mean(models_pred, axis=0)
         result_df["ensemble"] = ensemble_pred
-        result_df.to_csv(result_file, sep="\t", index=False)
-    sp_score = spearmanr(result_df["score"], result_df["ensemble"]).correlation
-    print(">>> Ensemble spearmanr: ", sp_score)
+        result_df.to_csv(result_file, index=False)
+        sp_score = spearmanr(result_df[args.mutant_score_col], result_df["ensemble"]).correlation
+        sp_scores.append(sp_score)
+    print(">>> Ensemble spearmanr: ", np.mean(sp_scores))
 
 def prepare(args, dataset_name, k, h):
     # for build dataset
@@ -142,6 +156,8 @@ def create_parser():
     # dataset 
     parser.add_argument("--mutant_dataset_dir", type=str, default="data/evaluation", help="mutation dataset")
     parser.add_argument("--mutant_name", type=str, default=None, help="name of mutation dataset")
+    parser.add_argument("--mutant_pos_col", type=str, default="mutant", help="mutation column name")
+    parser.add_argument("--mutant_score_col", type=str, default=None, help="the model output score column name")
     
     parser.add_argument("--score_info", type=str, default=None, help="the model output spearmanr score file")
     parser.add_argument("--result_dir", type=str, default="result/", help="the result output path")

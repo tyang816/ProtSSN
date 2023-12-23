@@ -129,8 +129,8 @@ dmypy.json
 .pyre/
 
 .idea/
-data/cath/
-data/mutant/
+data/
+!data/mutant_example/
 result/
 *.ipynb
 *.gz
@@ -139,3 +139,4 @@ ddg.csv
 wandb/
 model/
 debug/
+my_script/
