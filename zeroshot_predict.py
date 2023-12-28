@@ -83,7 +83,7 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
             mutant_df[args.score_name] = mutant_df[args.mutant_pos_col].apply(
                 lambda x: label_row(x, seq, out.cpu().numpy(), offset)
             )
-            result_file = os.path.join(args.result_dir, protein_name + "_labeled.csv")
+            result_file = os.path.join(args.result_dir, protein_name + ".csv")
             if not os.path.exists(result_file):
                 mutant_df.to_csv(result_file, index=False)
                 
@@ -157,7 +157,7 @@ def create_parser():
     parser.add_argument("--mutant_dataset_dir", type=str, default="data/evaluation", help="mutation dataset")
     parser.add_argument("--mutant_name", type=str, default=None, help="name of mutation dataset")
     parser.add_argument("--mutant_pos_col", type=str, default="mutant", help="mutation column name")
-    parser.add_argument("--mutant_score_col", type=str, default=None, help="the model output score column name")
+    parser.add_argument("--mutant_score_col", type=str, default="score", help="the model output score column name")
     
     parser.add_argument("--score_info", type=str, default=None, help="the model output spearmanr score file")
     parser.add_argument("--result_dir", type=str, default="result/", help="the result output path")

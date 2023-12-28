@@ -18,6 +18,8 @@ Our **ensemble ProtSSN** achieved **first place** on new **ProteinGym,** with an
 
 You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
 
+The pdb and csv files we checked can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/ProteinGym_substitutions_pdb-csv_checked.zip.
+
 ### Paper Results
 
 We conducted tests on **ProteinGym** and compared it with the non-MSA method. Meanwhile, due to the fusion of structural information, we also conducted tests on two newly constructed stability datasets, **DTm** and **DDG**, in order to verify the correlation between structure and stability.
@@ -42,16 +44,6 @@ We recommend that the `torch_geometric` should been updated to 2.3 or higher.
 
 ```shell
 conda env create -f environment.yaml
-conda activate protssn
-```
-
-**if you are a Linux user, you can use download the enviroment we prepared.** Our CUDA version is 11.6.
-
-```shell
-wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/protein.tar.gz
-mkdir -p <your conda path>/envs/protssn
-tar -xzvf protein.tar.gz -C <your conda path>/envs/protssn
-rm protein.tar.gz
 conda activate protssn
 ```
 

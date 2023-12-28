@@ -2,7 +2,7 @@ import argparse
 import os
 import pandas as pd
 from tqdm import tqdm
-
+from utils.utils import load_coords
 
 parser = argparse.ArgumentParser(description='make single mutant tsv')
 parser.add_argument("-d", "--dataset", type=str, default=None)
@@ -19,8 +19,14 @@ AA = list(one_letter.values())
 base_dir = os.path.join(args.dataset, "DATASET")
 proteins = os.listdir(base_dir)
 for p in proteins:
-    fasta = os.path.join(base_dir, p, f"{p}.fasta")
-    seq = open(fasta, "r").readlines()[1].strip()
+    fasta_file = os.path.join(base_dir, p, f"{p}.fasta")
+    pdb_file = os.path.join(base_dir, p, f"{p}.pdb")
+    if os.path.exists(fasta_file):
+        seq = open(fasta_file, "r").readlines()[1].strip()
+    elif os.path.exists(pdb_file):
+        _, seq = load_coords(pdb_file, "A")
+    else:
+        raise ValueError(f"Invalid file: {fasta_file} or {pdb_file}")
     data = {"mutant":[], "score":[]}
     for idx,s in enumerate(seq):
         for a in AA:
@@ -30,5 +36,5 @@ for p in proteins:
             data["score"].append(0)
 
     print(f"{p} contains { len(data['mutant'])}")
-    out_file = os.path.join(base_dir, p, f"{p}.tsv")
-    pd.DataFrame(data).to_csv(out_file, sep="\t", index=False)
+    out_file = os.path.join(base_dir, p, f"{p}.csv")
+    pd.DataFrame(data).to_csv(out_file, index=False)
