@@ -51,23 +51,20 @@ def label_row(rows, sequence, token_probs, offset_idx=1):
     return sum(s)
 
 
-def predict(args, plm_model, gnn_model, loader, protein_names):
+def predict(args, plm_model, gnn_model, loader):
     gnn_model.eval()
     softmax = nn.Softmax()
-    protein_num = len(protein_names)
-    spear_cor = np.zeros(protein_num)
-    mutation_num = []
+    result_dict = {"name": [], "count": [], args.score_name: []}
 
     with torch.no_grad():
         for data in loader:
-            protein_idx = data.protein_idx
-            protein_name = protein_names[protein_idx]
+            protein_name = data.protein_name[0]
             graph_data = plm_model(data)
             out, _ = gnn_model(graph_data)
-            
             seq = "".join([amino_acids_type[i] for i in data.y])
             out = torch.log(softmax(out[:, :20]) + 1e-9)
             
+            # check the mutant file
             mutant_file_tsv = os.path.join(args.mutant_dataset_dir, "DATASET", protein_name, f"{protein_name}.tsv")
             mutant_file_csv = os.path.join(args.mutant_dataset_dir, "DATASET", protein_name, f"{protein_name}.csv")
             if os.path.exists(mutant_file_tsv):
@@ -76,10 +73,14 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
                 mutant_df = pd.read_csv(mutant_file_csv)
             else:
                 raise ValueError(f"Invalid file: {mutant_file_tsv} or {mutant_file_csv}")
+            
+            # check the offset
             if protein_name == "A0A140D2T1_ZIKV_Sourisseau_2019":
                 offset = 291
             else:
                 offset = 1
+            
+            # label the mutant
             mutant_df[args.score_name] = mutant_df[args.mutant_pos_col].apply(
                 lambda x: label_row(x, seq, out.cpu().numpy(), offset)
             )
@@ -91,28 +92,25 @@ def predict(args, plm_model, gnn_model, loader, protein_names):
             result[args.score_name] = mutant_df[args.score_name]
             result.to_csv(result_file, index=False)
             
-            mutation_num.append(len(result))
-            spear_cor[protein_idx] = spearmanr(
-                result[args.mutant_score_col], result[args.score_name]
-            ).correlation
-            print(f"-> {protein_name}: {spear_cor[protein_idx]}; mutant_num: {len(result)}")
-            if spear_cor[protein_idx] is nan:
-                spear_cor[protein_idx] = 0
+            # save the spearmanr score
+            result_dict['count'].append(len(result))
+            result_dict['name'].append(protein_name)
+            spearmanr_score = spearmanr(result[args.mutant_score_col], result[args.score_name]).correlation
+            if spearmanr_score is nan:
+                spearmanr_score = 0
+            result_dict[args.score_name].append(spearmanr_score)
+            
+            print(f">>> {protein_name}: {spearmanr_score}; mutant_num: {len(result)}")
     
     if args.score_info is not None:
         if os.path.exists(args.score_info):
             total_result = pd.read_csv(args.score_info)
-            total_result[args.score_name] = spear_cor
+            total_result[args.score_name] = result_dict[args.score_name]
             total_result.to_csv(args.score_info, index=False)
         else:
-            total_result = {
-                "name": protein_names, 
-                "count": mutation_num, 
-                args.score_name: spear_cor
-            }
-            total_result = pd.DataFrame(total_result)
-            total_result.to_csv(args.score_info, index=False)
-    print(f">>> {args.score_name} average spearmanr: {spear_cor.mean()}\n")
+            pd.DataFrame(result_dict).to_csv(args.score_info, index=False)
+            
+    print(f">>> {args.score_name} average spearmanr: {np.mean(result_dict[args.score_name])}\n")
 
 def ensemble(args):
     print("----------------- Ensemble -----------------")
@@ -123,9 +121,9 @@ def ensemble(args):
         result_df = pd.read_csv(result_file)
         models_pred = [result_df[col].to_list() for col in result_df.columns if col.startswith("ProtSSN")]
         ensemble_pred = np.mean(models_pred, axis=0)
-        result_df["ensemble"] = ensemble_pred
+        result_df["ProtSSN_ensemble"] = ensemble_pred
         result_df.to_csv(result_file, index=False)
-        sp_score = spearmanr(result_df[args.mutant_score_col], result_df["ensemble"]).correlation
+        sp_score = spearmanr(result_df[args.mutant_score_col], result_df["ProtSSN_ensemble"]).correlation
         sp_scores.append(sp_score)
     print(">>> Ensemble spearmanr: ", np.mean(sp_scores))
 
@@ -141,7 +139,7 @@ def prepare(args, dataset_name, k, h):
     print(f">>> k{k}_h{h} {param_num(gnn_model)}")
     gnn_model_path = os.path.join(args.gnn_model_dir, f"protssn_k{k}_h{h}.pt")
     gnn_model.load_state_dict(torch.load(gnn_model_path))
-    return args, mutant_loader, protein_names, gnn_model
+    return args, mutant_loader, gnn_model
 
 def create_parser():
     parser = argparse.ArgumentParser()
@@ -184,10 +182,7 @@ if __name__ == "__main__":
         args.gnn_config["hidden_channels"] = h
         args.c_alpha_max_neighbors = k
         args.score_name = f"ProtSSN_k{k}_h{h}"
-        args, mutant_loader, protein_names, gnn_model = prepare(args, dataset_name, k, h)
-        predict(
-            args=args, plm_model=plm_model, gnn_model=gnn_model, 
-            loader=mutant_loader, protein_names=protein_names
-        )
+        args, mutant_loader, gnn_model = prepare(args, dataset_name, k, h)
+        predict(args=args, plm_model=plm_model, gnn_model=gnn_model, loader=mutant_loader)
     if args.use_ensemble:
         ensemble(args)

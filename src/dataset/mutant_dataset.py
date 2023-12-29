@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import pandas as pd
 import numpy as np
 import scipy.spatial as spa
-from torch_geometric.data import Data, Dataset
+from torch_geometric.data import Data, Dataset, InMemoryDataset
 from tqdm import tqdm
 from scipy.special import softmax
 from Bio.PDB import PDBParser, ShrakeRupley
@@ -131,23 +131,25 @@ class MutantDataset(Dataset):
         self.use_angle = use_angle
         self.use_omega = use_omega
         
-        self.wrong_proteins = ['1kp0A01', '2atcA02']
-
-        self.sr = ShrakeRupley(probe_radius=1.4,  # in A. Default is 1.40 roughly the radius of a water molecule.
-                               n_points=100)  # resolution of the surface of each atom. Default is 100. A higher number of points results in more precise measurements, but slows down the calculation.
-        self.periodic_table = GetPeriodicTable()
+        self.protein_names = []
+        self.wrong_protein_names = []
+        self.total_protein_names = []
+        if os.path.exists(self.total_protein_name_file):
+            self.protein_names = open(self.saved_protein_name_file, 'r').read().splitlines()
+        if os.path.exists(self.wrong_protein_name_file):
+            self.wrong_protein_names = open(self.wrong_protein_name_file, 'r').read().splitlines()
+        if os.path.exists(self.total_protein_name_file):
+            self.total_protein_names = open(self.total_protein_name_file, 'r').read().splitlines()
+        
+        # in A. Default is 1.40 roughly the radius of a water molecule.
+        # resolution of the surface of each atom. Default is 100. A higher number of points results in more precise measurements, but slows down the calculation.
+        self.sr = ShrakeRupley(probe_radius=1.4, n_points=100)  
         self.biopython_parser = PDBParser()
 
-        self.nums_amino_cum = torch.tensor([0])
         self.saved_graph_path = self.mk_saved_graph_path()
         super().__init__(root, transform, pre_transform, pre_filter)
-        self.nums_amino = torch.load(self.saved_amino_cum)
-        self.nums_amino_cum = torch.cumsum(self.nums_amino, dim=0)
-        # np.savetxt('/home/wang1/xinyexiong/protein/dataset/my_file.txt', np.array(self.data.edge_index,dtype=int))
-        # print(self.slices)
         # After processing protein from pdb --> Data
-        self.protein_names = torch.load(self.saved_protein_name)
-        # self.protein_names = [x for x in self.protein_names if x.find('.') == -1]
+        
         self.length_total = len(self.protein_names)
 
     @property
@@ -159,40 +161,30 @@ class MutantDataset(Dataset):
         return self.raw_root
 
     def mk_saved_graph_path(self) -> str:
-        dir_name = os.path.join(
-            self.root, self.name.capitalize(), 'graph')
-        if not os.path.exists(os.path.join(self.root, self.name.capitalize())):
-            os.mkdir(os.path.join(self.root, self.name.capitalize()))
-        if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
-        return dir_name
+        os.makedirs(os.path.join(self.root, self.name.capitalize()), exist_ok=True)
+        graph_dir = os.path.join(self.root, self.name.capitalize(), 'graph')
+        os.makedirs(graph_dir, exist_ok=True)
+        return graph_dir
 
     @property
-    def saved_amino_cum(self) -> str:
-        amino_cum_name = os.path.join(
-            self.root, self.name.capitalize(), 'amino_cum.pt')
-        return amino_cum_name
+    def total_protein_name_file(self) -> str:
+        return os.path.join(self.root, self.name.capitalize(), 'total_proteins.txt')
 
     @property
-    def saved_protein_name_txt(self) -> str:
-        protein_names = os.path.join(
-            self.root, self.name.capitalize(), 'protein_name.txt')
-        return protein_names
+    def saved_protein_name_file(self) -> str:
+        return os.path.join(self.root, self.name.capitalize(), 'saved_proteins.txt')
 
     @property
-    def saved_protein_name(self) -> str:
-        protein_names = os.path.join(
-            self.root, self.name.capitalize(), 'protein_name.pt')
-        return protein_names
-
+    def wrong_protein_name_file(self) -> str:
+        return os.path.join(self.root, self.name.capitalize(), 'wrong_proteins.txt')
+    
     @property
     def processed_dir(self) -> str:
         return os.path.join(self.root, self.name.capitalize(), 'processed')
 
     @property
     def processed_file_names(self) -> str:
-        return ['data_0.pt']
-        # return [f'data_{idx}.pt' for idx in range(self.set_length)]
+        return [p+".pt" for p in self.protein_names]
 
     def download(self):
         pass
@@ -201,72 +193,71 @@ class MutantDataset(Dataset):
         # if self.replace_graph:
         self.generate_protein_graph_evaluation()
 
-        filenames = []
-        for item in torch.load(self.saved_protein_name):
-            file = item + '.pt'
+        exist_proteins = []
+        proteins = open(self.saved_protein_name_file, 'r').read().splitlines()
+        for p in proteins:
+            file = p + '.pt'
             if os.path.exists(os.path.join(self.saved_graph_path, file)):
-                filenames.append(file)
+                exist_proteins.append(file)
 
-        protein_length = len(filenames)
-        if (not self.replace_process) and (len(os.listdir(self.processed_dir)) >= protein_length):
+        protein_num = len(exist_proteins)
+        if (not self.replace_process) and (len(os.listdir(self.processed_dir)) >= protein_num):
             return 0
 
-        for idx in tqdm(range(protein_length)):
-            saved_prcessed_name = os.path.join(self.processed_dir, f'data_{idx}.pt')
-            if (not self.replace_process) and (saved_prcessed_name in self.processed_file_names):
-                continue
-            data = torch.load(os.path.join(self.saved_graph_path, filenames[idx]))
-            file = saved_prcessed_name
-            data.name=file
-            tmpseq = [one_letter[amino] for amino in data.seq]  ###len(seq)-pos.shape[0]=1,seq is full,pos
-            data.seq = "".join(tmpseq)
-            data.tuple = (file.split(".")[0], data.seq)
+        process_bar = tqdm(exist_proteins)
+        for protein in process_bar:
+            process_bar.set_description(f"Processing {protein}")
+            
+            graph_data = torch.load(os.path.join(self.saved_graph_path, protein))
+            tmpseq = [one_letter[amino] for amino in graph_data.seq]
+            graph_data.seq = "".join(tmpseq)
 
             if self.pre_filter is not None:
-                data = self.pre_filter(data)
+                graph_data = self.pre_filter(graph_data)
 
             if self.pre_transform is not None:
-                data = self.pre_transform(data)
-            print(saved_prcessed_name)
-            torch.save(data, saved_prcessed_name)
-            self.nums_amino_cum = torch.cat(
-                (self.nums_amino_cum.reshape(-1), torch.tensor(data.x.shape[0]).reshape(-1)))
-            torch.save(self.nums_amino_cum, self.saved_amino_cum)
-            if saved_prcessed_name not in self.processed_file_names:
-                self.processed_file_names.append(saved_prcessed_name)
+                graph_data = self.pre_transform(graph_data)
+            
+            saved_prcessed_name = os.path.join(self.processed_dir, protein)
+            torch.save(graph_data, saved_prcessed_name)
 
     def generate_protein_graph_evaluation(self):
-        names = sorted(os.listdir(self.raw_dir))
-        print(names)
-        torch.save(names, self.saved_protein_name)
-        with open(self.saved_protein_name_txt, 'w') as fp:
-            for item in names:
-                # write each item on a new line
-                fp.writelines("%s\n" % item)
-
-        for idx, name in enumerate(tqdm(names)):
+        self.total_protein_names = sorted(os.listdir(self.raw_dir))
+        process_bar = tqdm(self.total_protein_names)
+        for name in process_bar:
+            process_bar.set_description(f"Processing {name}")
             protein_dir = os.path.join(self.raw_dir, name)
             
-            if os.path.exists(os.path.join(self.saved_graph_path, name + '.pt')):
+            if os.path.exists(os.path.join(self.saved_graph_path, name + '.pt')) or not os.path.isdir(protein_dir):
                 continue
-            
-            if not os.path.isdir(protein_dir):
-                continue
+
             pdb_suffix = ".pdb"
             pdb_file = os.path.join(protein_dir, name + pdb_suffix)
             assert os.path.exists(pdb_file), f"{pdb_file} does not exist"
 
-            if (name in self.wrong_proteins) or (not pdb_file):
-                continue
             rec, rec_coords, c_alpha_coords, n_coords, c_coords,seq = self.get_receptor_inference(
                 pdb_file)
 
             rec_graph = self.get_calpha_graph(rec, c_alpha_coords, n_coords, c_coords,seq)
             if not rec_graph:
-                self.wrong_proteins.append(name)
+                self.wrong_protein_names.append(name)
                 continue
-            rec_graph.protein_idx = idx
             torch.save(rec_graph, os.path.join(self.saved_graph_path, name + '.pt'))
+        
+        with open(self.total_protein_name_file, 'w') as fp:
+            for item in self.total_protein_names:
+                fp.writelines("%s\n" % item)
+        print(f"Total proteins: {self.total_protein_names}")
+        
+        self.protein_names = sorted([name.split(".")[0] for name in os.listdir(self.saved_graph_path)])
+        with open(self.saved_protein_name_file, 'w') as fp:
+            for item in self.protein_names:
+                fp.writelines("%s\n" % item)
+        
+        with open(self.wrong_protein_name_file, 'w') as fp:
+            for item in self.wrong_protein_names:
+                fp.writelines("%s\n" % item)
+        print(f"Wrong proteins: {self.wrong_protein_names}")
 
     def rec_residue_featurizer(self, rec, one_hot=True, add_feature=None):
         num_res = len([_ for _ in rec.get_residues()])
@@ -303,8 +294,7 @@ class MutantDataset(Dataset):
         for k in range(self.num_residue_type, self.num_residue_type + 2):
             mean = res_feature[:, k].mean()
             std = res_feature[:, k].std()
-            res_feature[:, k] = (res_feature[:, k] -
-                                 mean) / (std + 0.000000001)
+            res_feature[:, k] = (res_feature[:, k] - mean) / (std + 0.000000001)
         return res_feature
 
     def get_node_features(self, n_coords, c_coords, c_alpha_coords, coord_mask, with_coord_mask=True, use_angle=False, use_omega=False):
@@ -314,23 +304,18 @@ class MutantDataset(Dataset):
             angles = np.zeros((num_res, num_angle_type))
             for i in range(num_res-1):
                 # These angles are called φ (phi) which involves the backbone atoms C-N-Cα-C
-                angles[i, 0] = dihedral(
-                    c_coords[i], n_coords[i], c_alpha_coords[i], n_coords[i+1])
+                angles[i, 0] = dihedral(c_coords[i], n_coords[i], c_alpha_coords[i], n_coords[i+1])
                 # psi involves the backbone atoms N-Cα-C-N.
-                angles[i, 1] = dihedral(
-                    n_coords[i], c_alpha_coords[i], c_coords[i], n_coords[i+1])
-                angles[i, 2] = dihedral(
-                    c_alpha_coords[i], c_coords[i], n_coords[i+1], c_alpha_coords[i+1])
+                angles[i, 1] = dihedral(n_coords[i], c_alpha_coords[i], c_coords[i], n_coords[i+1])
+                angles[i, 2] = dihedral(c_alpha_coords[i], c_coords[i], n_coords[i+1], c_alpha_coords[i+1])
         else:
             num_angle_type = 2
             angles = np.zeros((num_res, num_angle_type))
             for i in range(num_res-1):
                 # These angles are called φ (phi) which involves the backbone atoms C-N-Cα-C
-                angles[i, 0] = dihedral(
-                    c_coords[i], n_coords[i], c_alpha_coords[i], n_coords[i+1])
+                angles[i, 0] = dihedral(c_coords[i], n_coords[i], c_alpha_coords[i], n_coords[i+1])
                 # psi involves the backbone atoms N-Cα-C-N.
-                angles[i, 1] = dihedral(
-                    n_coords[i], c_alpha_coords[i], c_coords[i], n_coords[i+1])
+                angles[i, 1] = dihedral(n_coords[i], c_alpha_coords[i], c_coords[i], n_coords[i+1])
         if use_angle:
             node_scalar_features = angles
         else:
@@ -349,7 +334,9 @@ class MutantDataset(Dataset):
 
     def get_calpha_graph(self, rec, c_alpha_coords, n_coords, c_coords,seq):
         scalar_feature, vec_feature = self.get_node_features(
-            n_coords, c_coords, c_alpha_coords, coord_mask=None, with_coord_mask=False, use_angle=self.use_angle, use_omega=self.use_omega)
+            n_coords, c_coords, c_alpha_coords, coord_mask=None, 
+            with_coord_mask=False, use_angle=self.use_angle, use_omega=self.use_omega
+            )
         # Extract 3D coordinates and n_i,u_i,v_i
         # vectors of representative residues ################
         residue_representatives_loc_list = []
@@ -360,22 +347,19 @@ class MutantDataset(Dataset):
             n_coord = n_coords[i]
             c_alpha_coord = c_alpha_coords[i]
             c_coord = c_coords[i]
-            u_i = (n_coord - c_alpha_coord) / \
-                np.linalg.norm(n_coord - c_alpha_coord)
-            t_i = (c_coord - c_alpha_coord) / \
-                np.linalg.norm(c_coord - c_alpha_coord)
-            n_i = np.cross(u_i, t_i) / \
-                np.linalg.norm(np.cross(u_i, t_i))   # main chain
+            u_i = (n_coord - c_alpha_coord) / np.linalg.norm(n_coord - c_alpha_coord)
+            t_i = (c_coord - c_alpha_coord) / np.linalg.norm(c_coord - c_alpha_coord)
+            n_i = np.cross(u_i, t_i) / np.linalg.norm(np.cross(u_i, t_i))   # main chain
             v_i = np.cross(n_i, u_i)
-            assert (math.fabs(
-                np.linalg.norm(v_i) - 1.) < 1e-5), "protein utils protein_to_graph_dips, v_i norm larger than 1"
+            assert (math.fabs(np.linalg.norm(v_i) - 1.) < 1e-5), "protein utils protein_to_graph_dips, v_i norm larger than 1"
             n_i_list.append(n_i)
             u_i_list.append(u_i)
             v_i_list.append(v_i)
             residue_representatives_loc_list.append(c_alpha_coord)
-
-        residue_representatives_loc_feat = np.stack(
-            residue_representatives_loc_list, axis=0)  # (N_res, 3)
+        
+        # (N_res, 3)
+        residue_representatives_loc_feat = np.stack(residue_representatives_loc_list, axis=0)
+        
         n_i_feat = np.stack(n_i_list, axis=0)
         u_i_feat = np.stack(u_i_list, axis=0)
         v_i_feat = np.stack(v_i_list, axis=0)
@@ -396,52 +380,54 @@ class MutantDataset(Dataset):
             dst = list(np.where(distances[i, :] < self.cutoff)[0])
             dst.remove(i)
             if self.c_alpha_max_neighbors != None and len(dst) > self.c_alpha_max_neighbors:
-                dst = list(np.argsort(distances[i, :]))[
-                    1: self.c_alpha_max_neighbors + 1]
+                dst = list(np.argsort(distances[i, :]))[1: self.c_alpha_max_neighbors + 1]
             if len(dst) == 0:
                 # choose second because first is i itself
                 dst = list(np.argsort(distances[i, :]))[1:2]
-                log(
-                    f'The c_alpha_cutoff {self.cutoff} was too small for one c_alpha such that it had no neighbors. So we connected it to the closest other c_alpha')
+                log(f'The c_alpha_cutoff {self.cutoff} was too small for one c_alpha such that it had no neighbors. So we connected it to the closest other c_alpha')
             assert i not in dst
+            
             src = [i] * len(dst)
             src_list.extend(src)
             dst_list.extend(dst)
             valid_dist = list(distances[i, dst])
             dist_list.extend(valid_dist)
             valid_dist_np = distances[i, dst]
+            
             sigma = np.array([1., 2., 5., 10., 30.]).reshape((-1, 1))
-            weights = softmax(- valid_dist_np.reshape((1, -1))
-                              ** 2 / sigma, axis=1)  # (sigma_num, neigh_num)
+            # (sigma_num, neigh_num)
+            weights = softmax(-valid_dist_np.reshape((1, -1)) ** 2 / sigma, axis=1)
             # print(weights)
             assert weights[0].sum() > 1 - 1e-2 and weights[0].sum() < 1.01
-            diff_vecs = residue_representatives_loc_feat[src, :] - residue_representatives_loc_feat[
-                dst, :]  # (neigh_num, 3)
-            mean_vec = weights.dot(diff_vecs)  # (sigma_num, 3)
-            denominator = weights.dot(np.linalg.norm(
-                diff_vecs, axis=1))  # (sigma_num,)
-            mean_vec_ratio_norm = np.linalg.norm(
-                mean_vec, axis=1) / denominator  # (sigma_num,)
+            # (neigh_num, 3)
+            diff_vecs = residue_representatives_loc_feat[src, :] - residue_representatives_loc_feat[dst, :]
+            # (sigma_num, 3)
+            mean_vec = weights.dot(diff_vecs)
+            # (sigma_num,)
+            denominator = weights.dot(np.linalg.norm(diff_vecs, axis=1))
+            # (sigma_num,)
+            mean_vec_ratio_norm = np.linalg.norm(mean_vec, axis=1) / denominator
             mean_norm_list.append(mean_vec_ratio_norm)
+            
         assert len(src_list) == len(dst_list)
         assert len(dist_list) == len(dst_list)
-        residue_representatives_loc_feat = torch.from_numpy(
-            residue_representatives_loc_feat.astype(np.float32))
-        x = self.rec_residue_featurizer(
-            rec, one_hot=True, add_feature=scalar_feature)
+        
+        residue_representatives_loc_feat = torch.from_numpy(residue_representatives_loc_feat.astype(np.float32))
+        x = self.rec_residue_featurizer(rec, one_hot=True, add_feature=scalar_feature)
+        
         if isinstance(x, bool) and (not x):
             return False
 
         graph = Data(
             x=x,
             pos=residue_representatives_loc_feat,
-            edge_attr=self.get_edge_features(
-                src_list, dst_list, dist_list, divisor=4),
+            edge_attr=self.get_edge_features(src_list, dst_list, dist_list, divisor=4),
             edge_index=torch.tensor([src_list, dst_list]),
             edge_dist=torch.tensor(dist_list),
             distances=torch.tensor(distances),
             mu_r_norm=torch.from_numpy(np.array(mean_norm_list).astype(np.float32)),
-            seq = seq)
+            seq=seq
+            )
 
         # Loop over all edges of the graph and build the various p_ij, q_ij, k_ij, t_ij pairs
         edge_feat_ori_list = []
@@ -449,25 +435,21 @@ class MutantDataset(Dataset):
             src = src_list[i]
             dst = dst_list[i]
             # place n_i, u_i, v_i as lines in a 3x3 basis matrix
-            basis_matrix = np.stack(
-                (n_i_feat[dst, :], u_i_feat[dst, :], v_i_feat[dst, :]), axis=0)
-            p_ij = np.matmul(basis_matrix,
-                             residue_representatives_loc_feat[src, :] - residue_representatives_loc_feat[
-                                 dst, :])
+            basis_matrix = np.stack((n_i_feat[dst, :], u_i_feat[dst, :], v_i_feat[dst, :]), axis=0)
+            p_ij = np.matmul(
+                basis_matrix,
+                residue_representatives_loc_feat[src, :] - residue_representatives_loc_feat[dst, :]
+                )
             q_ij = np.matmul(basis_matrix, n_i_feat[src, :])  # shape (3,)
             k_ij = np.matmul(basis_matrix, u_i_feat[src, :])
             t_ij = np.matmul(basis_matrix, v_i_feat[src, :])
-            s_ij = np.concatenate(
-                (p_ij, q_ij, k_ij, t_ij), axis=0)  # shape (12,)
+            s_ij = np.concatenate((p_ij, q_ij, k_ij, t_ij), axis=0)  # shape (12,)
             edge_feat_ori_list.append(s_ij)
 
-        edge_feat_ori_feat = np.stack(
-            edge_feat_ori_list, axis=0)  # shape (num_edges, 4, 3)
-        edge_feat_ori_feat = torch.from_numpy(
-            edge_feat_ori_feat.astype(np.float32))
+        edge_feat_ori_feat = np.stack(edge_feat_ori_list, axis=0)  # shape (num_edges, 4, 3)
+        edge_feat_ori_feat = torch.from_numpy(edge_feat_ori_feat.astype(np.float32))
 
-        graph.edge_attr = torch.cat(
-            [graph.edge_attr, edge_feat_ori_feat], axis=1)  # (num_edges, 17)
+        graph.edge_attr = torch.cat([graph.edge_attr, edge_feat_ori_feat], axis=1)  # (num_edges, 17)
         #graph = self.remove_node(graph, graph.x.shape[0]-1)
         # self.get_calpha_graph_single(graph, 6)
         return graph
@@ -489,23 +471,20 @@ class MutantDataset(Dataset):
         return new_graph
 
     def get_edge_features(self, src_list, dst_list, dist_list, divisor=4):
-        seq_edge = torch.absolute(torch.tensor(
-            src_list) - torch.tensor(dst_list)).reshape(-1, 1)
-        seq_edge = torch.where(seq_edge > self.seq_dist_cut,
-                               self.seq_dist_cut, seq_edge)
-        seq_edge = F.one_hot(
-            seq_edge, num_classes=self.seq_dist_cut + 1).reshape((-1, self.seq_dist_cut + 1))
-        contact_sig = torch.where(torch.tensor(
-            dist_list) <= 8, 1, 0).reshape(-1, 1)
+        seq_edge = torch.absolute(torch.tensor(src_list) - torch.tensor(dst_list)).reshape(-1, 1)
+        seq_edge = torch.where(seq_edge > self.seq_dist_cut, self.seq_dist_cut, seq_edge)
+        seq_edge = F.one_hot(seq_edge, num_classes=self.seq_dist_cut + 1).reshape((-1, self.seq_dist_cut + 1))
+        
+        contact_sig = torch.where(torch.tensor(dist_list) <= 8, 1, 0).reshape(-1, 1)
         # avg distance = 7. So divisor = (4/7)*7 = 4
         dist_fea = self.distance_featurizer(dist_list, divisor=divisor)
+        
         return torch.concat([seq_edge, dist_fea, contact_sig], dim=-1)
 
     def get_receptor_inference(self, rec_path):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=PDBConstructionWarning)
-            structure = self.biopython_parser.get_structure(
-                'random_id', rec_path)
+            structure = self.biopython_parser.get_structure('random_id', rec_path)
             rec = structure[0]
         coords = []
         c_alpha_coords = []
@@ -572,8 +551,7 @@ class MutantDataset(Dataset):
         # list with n_residues arrays: [n_atoms, 3]
         coords = [item for sublist in valid_coords for item in sublist]
 
-        c_alpha_coords = np.concatenate(
-            valid_c_alpha_coords, axis=0)  # [n_residues, 3]
+        c_alpha_coords = np.concatenate(valid_c_alpha_coords, axis=0)  # [n_residues, 3]
         n_coords = np.concatenate(valid_n_coords, axis=0)  # [n_residues, 3]
         c_coords = np.concatenate(valid_c_coords, axis=0)  # [n_residues, 3]
 
@@ -610,11 +588,11 @@ class MutantDataset(Dataset):
             f'Min Edges: {num_edge_min:.2f} Max Edges: {num_edge_max:.2f}. Avg Edges: {num_edge_avg:.2f}')
 
     def get(self, idx):
-        idx_protein = idx
-        data = torch.load(os.path.join(self.processed_dir, f'data_{idx_protein}.pt'))
+        protein_name = self.protein_names[idx]
+        data = torch.load(os.path.join(self.processed_dir, f'{protein_name}.pt'))
         notes_number = list((data.x[:, :20].argmax(dim=1)).size())[0]
         data.y = torch.argmax(data.x[torch.tensor(range(notes_number)), :self.num_residue_type], dim=1)
-        data.protein_idx = idx_protein
+        data.protein_name = protein_name
         return data
 
     def find_idx(self, idx_protein, amino_idx):
@@ -625,15 +603,19 @@ class MutantDataset(Dataset):
     def get_calpha_graph_single(self, graph, idx_protein, amino_idx):
         choosen_amino_idx = self.find_idx(idx_protein, amino_idx)
         keep_edge_index = []
+        
         for edge_idx in range(graph.num_edges):
             edge = graph.edge_index.t()[edge_idx]
             if (edge[0] in choosen_amino_idx) and (edge[1] in choosen_amino_idx):
                 keep_edge_index.append(edge_idx)
-        graph1 = Data(x=graph.x[choosen_amino_idx, :],
-                      pos=graph.pos[choosen_amino_idx, :],
-                      edge_index=graph.edge_index[:, keep_edge_index],
-                      edge_attr=graph.edge_attr[keep_edge_index, :],
-                      mu_r_norm=graph.mu_r_norm[choosen_amino_idx, :])
+        
+        graph1 = Data(
+            x=graph.x[choosen_amino_idx, :],
+            pos=graph.pos[choosen_amino_idx, :],
+            edge_index=graph.edge_index[:, keep_edge_index],
+            edge_attr=graph.edge_attr[keep_edge_index, :],
+            mu_r_norm=graph.mu_r_norm[choosen_amino_idx, :]
+            )
         return graph1
 
     def __repr__(self) -> str:

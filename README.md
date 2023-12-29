@@ -14,7 +14,7 @@ We focus on using end-to-end methods for protein directed evolution in zero samp
 
 😁 Congratulations! 
 
-Our **ensemble ProtSSN** achieved **first place** on new **ProteinGym,** with an average spearman score of **0.473.** Our **single ProtSSN** also achieved a score of **0.465**. 
+Our **ensemble ProtSSN** achieved an average spearman score of **0.473.** on new **ProteinGym**, and **single ProtSSN** also achieved a score of **0.465**. 
 
 You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
 

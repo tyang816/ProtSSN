@@ -25,20 +25,20 @@ sys.path.append(current_dir)
 logging.set_verbosity_error()
 warnings.filterwarnings("ignore")
 
-def predict(plm_model, gnn_model, loader, protein_names):
+def predict(plm_model, gnn_model, loader):
     gnn_model.eval()
     embed_dict = {}
 
     with torch.no_grad():
         bar = tqdm(loader)
         for data in bar:
-            name = protein_names[data.protein_idx]
+            name = data.protein_name[0]
+            bar.set_description(f"Protein: {name}")
             graph_data = plm_model(data)
             esm_embed = graph_data.esm_rep
             out, gnn_embed = gnn_model(graph_data)
             esm_embed, gnn_embed = esm_embed.cpu(), gnn_embed.cpu()
             embed_dict[name] = {"esm_embed": esm_embed, "gnn_embed": gnn_embed}
-            bar.set_postfix_str(f"{name}")
 
     return embed_dict
 
@@ -55,7 +55,7 @@ def prepare(args, dataset_name, k, h):
     print(f">>> k{k}_h{h} {param_num(gnn_model)}")
     gnn_model_path = os.path.join(args.gnn_model_dir, f"protssn_k{k}_h{h}.pt")
     gnn_model.load_state_dict(torch.load(gnn_model_path))
-    return args, mutant_loader, protein_names, gnn_model
+    return args, mutant_loader, gnn_model
 
 def create_parser():
     parser = argparse.ArgumentParser()
@@ -92,9 +92,6 @@ if __name__ == "__main__":
         print(f"--------------- ProtSSN k{k}_h{h} ---------------")
         args.gnn_config["hidden_channels"] = h
         args.c_alpha_max_neighbors = k
-        args, mutant_loader, protein_names, gnn_model = prepare(args, dataset_name, k, h)
-        embed = predict(
-                plm_model=plm_model, gnn_model=gnn_model, 
-                loader=mutant_loader, protein_names=protein_names
-            )
+        args, mutant_loader, gnn_model = prepare(args, dataset_name, k, h)
+        embed = predict(plm_model=plm_model, gnn_model=gnn_model, loader=mutant_loader)
         torch.save(embed, os.path.join(args.result_dir, f"{gnn}.pt"))
