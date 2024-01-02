@@ -38,7 +38,7 @@ def predict(plm_model, gnn_model, loader):
             esm_embed = graph_data.esm_rep
             out, gnn_embed = gnn_model(graph_data)
             esm_embed, gnn_embed = esm_embed.cpu(), gnn_embed.cpu()
-            embed_dict[name] = {"esm_embed": esm_embed, "gnn_embed": gnn_embed}
+            embed_dict[name] = {"esm_embed": esm_embed, "protssn_embed": gnn_embed}
 
     return embed_dict
 

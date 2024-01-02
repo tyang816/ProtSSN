@@ -169,10 +169,12 @@ CUDA_VISIBLE_DEVICES=0 python get_embedding.py \
 
 The output file is `<model>.pt` which is the following format: 
 
+*esm_embed* is the embedding from facebook/esm2_650M, *protssn_embed* is the embedding from protssn which fusues the protein language and sturcture information.
+
 ```shell
 {
-    protein1: {"esm_embed": esm_embed, "gnn_embed": gnn_embed}, 
-    protein2: {"esm_embed": esm_embed, "gnn_embed": gnn_embed},
+    protein1: {"esm_embed": esm_embed, "protssn_embed": protssn_embed}, 
+    protein2: {"esm_embed": esm_embed, "protssn_embed": protssn_embed},
     ...
 }
 ```
