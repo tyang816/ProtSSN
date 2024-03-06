@@ -75,10 +75,7 @@ def predict(args, plm_model, gnn_model, loader):
                 raise ValueError(f"Invalid file: {mutant_file_tsv} or {mutant_file_csv}")
             
             # check the offset
-            if protein_name == "A0A140D2T1_ZIKV_Sourisseau_2019":
-                offset = 291
-            else:
-                offset = 1
+            offset = 1
             
             # label the mutant
             mutant_df[args.score_name] = mutant_df[args.mutant_pos_col].apply(

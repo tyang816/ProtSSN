@@ -14,11 +14,11 @@ We focus on using end-to-end methods for protein directed evolution in zero samp
 
 😁 Congratulations! 
 
-Our **ensemble ProtSSN** achieved an average spearman score of **0.473.** on new **ProteinGym**, and **single ProtSSN** also achieved a score of **0.465**. 
+Our **ensemble ProtSSN** achieved an average spearman score of **0.474.** on new **ProteinGym**. 
 
 You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
 
-The pdb and csv files we checked can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/ProteinGym_substitutions_pdb-csv_checked.zip.
+The pdb files folded by ColabFold 1.5 can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_pdb.tar.gz.
 
 ### Paper Results
 
