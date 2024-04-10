@@ -6,6 +6,8 @@ from utils.utils import load_coords
 
 parser = argparse.ArgumentParser(description='make single mutant tsv')
 parser.add_argument("-d", "--dataset", type=str, default=None)
+parser.add_argument("--start", type=int, default=-1)
+parser.add_argument("--end", type=int, default=int(1e6))
 args = parser.parse_args()
 
 one_letter = {
@@ -28,7 +30,9 @@ for p in proteins:
     else:
         raise ValueError(f"Invalid file: {fasta_file} or {pdb_file}")
     data = {"mutant":[], "score":[]}
-    for idx,s in enumerate(seq):
+    for idx, s in tqdm(enumerate(seq)):
+        if idx + 1 < args.start or idx + 1 > args.end:
+            continue
         for a in AA:
             if a == s:
                 continue
