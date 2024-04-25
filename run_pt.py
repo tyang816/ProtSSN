@@ -87,7 +87,8 @@ class StepRunner:
         
         if self.stage == "train":
             with self.accelerator.accumulate(self.gnn_model):
-                out, _ = self.gnn_model(batch_graph).cuda()
+                out, _ = self.gnn_model(batch_graph)
+                out = out.cuda()
                 y = torch.cat([data.y for data in batch]).to(out.device)
                 loss = self.loss_fn(out[:, :20], y)
                 self.accelerator.backward(loss)
@@ -98,7 +99,8 @@ class StepRunner:
                     self.scheduler.step()  # Update learning rate schedule
                 self.optimizer.zero_grad()
         else:
-            out, _ = self.gnn_model(batch_graph).cuda()
+            out, _ = self.gnn_model(batch_graph)
+            out = out.cuda()
             y = torch.cat([data.y for data in batch]).to(out.device)
             loss = self.loss_fn(out[:, :20], y)
         
