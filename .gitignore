@@ -128,9 +128,13 @@ dmypy.json
 
 .idea/
 data/*
-!data/mutant_example
-!data/DDG/DATASET
-!data/DTM/DATASET
+!data/mutant_example/
+!data/DDG/
+data/DDG/*
+!data/DDG/DATASET/
+!data/DTM/
+data/DTM/*
+!data/DTM/DATASET/
 result/
 *.ipynb
 *.gz

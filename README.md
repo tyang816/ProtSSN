@@ -10,15 +10,16 @@ We focus on using end-to-end methods for protein directed evolution in zero samp
 
 ## 📑 Results
 
-### New Reults (update. 2023.12.23)
+### News
 
-😁 Congratulations! 
+- [2024.4.28] Our paper is under review on eLife, 10.7554/eLife.98033.
+- [2023.12.23] Our **ensemble ProtSSN** achieves a spearman score of **0.449** on **ProteinGym v1.0**. You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
 
-Our **ensemble ProtSSN** achieved an average spearman score of **0.474.** on new **ProteinGym**. 
+### Downloads
 
-You can view and compare different baseline models on the [ProteinGym website](https://proteingym.org/benchmarks).
-
-The pdb files folded by ColabFold 1.5 can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_pdb.tar.gz.
+- ProteinGym: The pdb files folded by ColabFold 1.5 can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_pdb.tar.gz
+- ProteinGym: The pdb and mutant files in ProtSSN formation can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_sub_pdb_csv.tar.gz
+- **DTM** and **DDG** dataset can be found in [`data/DTM`](https://github.com/tyang816/ProtSSN/tree/master/data/DTM) and [`data/DDG`](https://github.com/tyang816/ProtSSN/tree/master/data/DDG)
 
 ### Paper Results
 
@@ -147,6 +148,7 @@ Perhaps you need protein embeddings for evolutionary or other direction analysis
 ### Prepare Your Own Dataset
 
 Here is a basic sample for embedding extraction in [`data/mutant_example`](https://github.com/tyang816/ProtSSN/tree/master/data/mutant_example), the files should be arranged in the following format:
+
 ```
 data/proteingym-benchmark
 |——DATASET
