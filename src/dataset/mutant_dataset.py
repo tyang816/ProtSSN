@@ -249,7 +249,7 @@ class MutantDataset(Dataset):
                 fp.writelines("%s\n" % item)
         print(f"Total proteins: {self.total_protein_names}")
         
-        self.protein_names = sorted([name.split(".")[0] for name in os.listdir(self.saved_graph_path)])
+        self.protein_names = sorted([name[:-3] for name in os.listdir(self.saved_graph_path)])
         with open(self.saved_protein_name_file, 'w') as fp:
             for item in self.protein_names:
                 fp.writelines("%s\n" % item)
