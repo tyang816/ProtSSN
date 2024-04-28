@@ -132,9 +132,12 @@ data/*
 !data/DDG/
 data/DDG/*
 !data/DDG/DATASET/
+!data/DDG/README.md
+
 !data/DTM/
 data/DTM/*
 !data/DTM/DATASET/
+!data/DTM/README.md
 result/
 *.ipynb
 *.gz
