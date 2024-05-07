@@ -113,27 +113,34 @@ class EpochRunner:
         for step, batch in loop:
             step_loss, model, metrics_dict = self.steprunner(batch)
             step_log = dict({f"{self.stage}/loss": round(step_loss, 3)})
-            if self.args.wandb:
-                wandb.log({f"{self.stage}/loss": step_loss}, step=step + self.args.epoch_idx * len(dataloader))
+            if self.args.wandb and self.stage == "train":
+                wandb.log(
+                    {f"{self.stage}/loss": step_loss}, 
+                    step=step + (self.args.epoch_idx -1) * len(dataloader)
+                )
             loop.set_postfix(**step_log)
             total_loss += step_loss
+        
+        for name, metric_fn in metrics_dict.items():
+            epoch_metric_results = {f"{self.stage}/{name}": metric_fn.compute().item()}
+            metric_fn.reset()
         avg_loss = total_loss / len(dataloader)
-        epoch_metric_results = {f"{self.stage}/{name}": metric_fn.compute() for name, metric_fn in metrics_dict.items()}
         epoch_metric_results[f"{self.stage}/epoch_loss"] = avg_loss
         return model, epoch_metric_results
 
 def train_model(args, model, 
                 optimizer, scheduler, loss_fn, 
                 accelerator=None, metrics_dict=None, 
-                train_data=None, valid_data=None,
+                train_data=None, valid_data=None, test_data=None,
                 monitor="valid/loss", mode="min"):
     history = {}
     start_epoch = 1
+    model_path = os.path.join(args.model_dir, args.model_name)
     logger.info("***** Running training *****")
     if args.auto_continue_train:
         history_df = pd.read_csv(os.path.join(args.model_dir, "history.csv"))
         names = history_df.columns
-        model.pooling_head.load_state_dict(torch.load(os.path.join(args.model_dir, f"best_{monitor}.pt"))["state_dict"])
+        model.pooling_head.load_state_dict(torch.load(model_path)["state_dict"])
         if args.epoch_idx:
             logger.info(f" Train from epoch_idx = {args.epoch_idx} ")
         else:
@@ -161,8 +168,6 @@ def train_model(args, model,
 
         for name, metric in epoch_metric_results.items():
             history[name] = history.get(name, []) + [metric]
-        if args.wandb:
-            wandb.log({name: metric for name, metric in epoch_metric_results.items()}, step=epoch)
 
         # 2，validate -------------------------------------------------
         if valid_data:
@@ -177,7 +182,10 @@ def train_model(args, model,
                 model, epoch_metric_results = val_epoch_runner(valid_data)
             
             if args.wandb:
-                wandb.log({name: metric for name, metric in epoch_metric_results.items()}, step=epoch)
+                wandb.log({name: metric for name, metric in epoch_metric_results.items()})
+            for name, metric in epoch_metric_results.items():
+                print(f">>> Epoch {epoch} {name}: {'%.3f'%metric}")
+            
             epoch_metric_results["epoch"] = epoch
             for name, metric in epoch_metric_results.items():
                 history[name] = history.get(name, []) + [metric]
@@ -185,24 +193,34 @@ def train_model(args, model,
         # 3，early-stopping -------------------------------------------------
         arr_scores = history[monitor]
         best_score_idx = np.argmax(arr_scores) if mode == "max" else np.argmin(arr_scores)
-        
         if best_score_idx == len(arr_scores) - 1:
-            if not os.path.exists(args.model_dir):
-                os.mkdir(args.model_dir)
-            model_path = os.path.join(args.model_dir, f"best_{monitor}.pt")
             torch.save({
                 "state_dict": model.pooling_head.state_dict(),
                 "epoch": epoch,
                 "history": history,
                 }, model_path)
-            print(f"<<<<<< reach best {monitor} : {'%.3f'%arr_scores[best_score_idx]} >>>>>>")
+            print(f">>> reach best {monitor} : {'%.3f'%arr_scores[best_score_idx]}")
         
         history_df = pd.DataFrame(history)
         history_df.to_csv(os.path.join(args.model_dir, "history.csv"), index=False)
         
         if args.patience > 0 and len(arr_scores) - best_score_idx > args.patience:
-            print(f"<<<<<< {monitor} without improvement in {args.patience} epoch, early stopping >>>>>>")
+            print(f">>> {monitor} without improvement in {args.patience} epoch, early stopping")
             break
+        
+        # 4，test -------------------------------------------------
+        if test_data:
+            test_step_runner = StepRunner(
+                args=args, stage="test", model=model, 
+                loss_fn=loss_fn, accelerator=accelerator,
+                metrics_dict=deepcopy(metrics_dict), 
+                optimizer=optimizer, scheduler=scheduler
+                )
+            test_epoch_runner = EpochRunner(test_step_runner)
+            with torch.no_grad():
+                model, epoch_metric_results = test_epoch_runner(test_data)
+            for name, metric in epoch_metric_results.items():
+                print(f">>> Epoch {epoch} {name}: {'%.3f'%metric}")
 
 
 def create_parser():
@@ -241,6 +259,7 @@ def create_parser():
     
     # save model
     parser.add_argument("--model_dir", type=str, default="model", help="model save dir")
+    parser.add_argument("--model_name", type=str, default=None, help="model name")
     
     # log
     parser.add_argument("--wandb", action="store_true", help="use wandb")
@@ -255,17 +274,18 @@ if __name__ == "__main__":
     args = create_parser()
     args.gnn_config = yaml.load(open(args.gnn_config), Loader=yaml.FullLoader)[args.gnn]
     args.gnn_config["hidden_channels"] = args.gnn_hidden_dim
+    
+    set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # init wandb
     if args.wandb:
         if args.wandb_run_name is None:
             args.wandb_run_name = f"ProtSSN-sol"
+        if args.model_name is None:
+            args.model_name = f"{args.wandb_run_name}.pt"
         
-        wandb.init(
-            project=args.wandb_project, name=args.wandb_run_name, config=vars(args)
-        )
-    set_seed(args.seed)
+        wandb.init(project=args.wandb_project, name=args.wandb_run_name, config=vars(args))
     
     # load dataset
     logger.info("***** Loading Dataset *****")
@@ -283,7 +303,7 @@ if __name__ == "__main__":
     )
 
     train_names, train_labels = pd.read_csv(args.train_file)["name"][:3000], pd.read_csv(args.train_file)["label"][:3000]
-    valid_names, valid_labels = pd.read_csv(args.valid_file)["name"], pd.read_csv(args.valid_file)["label"]
+    valid_names, valid_labels = pd.read_csv(args.valid_file)["name"][:300], pd.read_csv(args.valid_file)["label"][:300]
     test_names, test_labels = pd.read_csv(args.test_file)["name"], pd.read_csv(args.test_file)["label"]
     
     def process_data(name, label):
@@ -373,7 +393,7 @@ if __name__ == "__main__":
         protssn_classification, optimizer, train_dataloader, valid_dataloader, test_dataloader
     )
     metrics_dict = {
-        "acc": Accuracy(task="multiclass", num_classes=args.num_labels)
+        "acc": Accuracy(task="multiclass", num_classes=args.num_labels).to(device)
     }
     
     os.makedirs(args.model_dir, exist_ok=True)    
@@ -394,11 +414,11 @@ if __name__ == "__main__":
     logger.info("  Gradient Accumulation steps = %d", args.gradient_accumulation_steps)
     
     train_model(
-        args=args, model=protssn_classification, optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn, 
-        accelerator=accelerator, metrics_dict=metrics_dict, train_data=train_dataloader, valid_data=valid_dataloader,
+        args=args, model=protssn_classification, 
+        optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn, 
+        accelerator=accelerator, metrics_dict=metrics_dict, 
+        train_data=train_dataloader, valid_data=valid_dataloader, test_data=test_dataloader,
         monitor="valid/acc", mode="max"
         )
     if args.wandb:
-        wandb.finish()
-    # save history
-    
+        wandb.finish()    
