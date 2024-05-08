@@ -111,6 +111,7 @@ class EpochRunner:
         loop = tqdm(enumerate(dataloader), total=len(dataloader), file=sys.stdout)
         total_loss = 0
         for step, batch in loop:
+            step += 1
             step_loss, model, metrics_dict = self.steprunner(batch)
             step_log = dict({f"{self.stage}/loss": round(step_loss, 3)})
             if self.args.wandb and self.stage == "train":
@@ -221,6 +222,8 @@ def train_model(args, model,
                 model, epoch_metric_results = test_epoch_runner(test_data)
             for name, metric in epoch_metric_results.items():
                 print(f">>> Epoch {epoch} {name}: {'%.3f'%metric}")
+            if args.wandb:
+                wandb.log({name: metric for name, metric in epoch_metric_results.items()})
 
 
 def create_parser():
@@ -281,7 +284,7 @@ if __name__ == "__main__":
     # init wandb
     if args.wandb:
         if args.wandb_run_name is None:
-            args.wandb_run_name = f"ProtSSN-sol"
+            args.wandb_run_name = f"ProtSSN-task"
         if args.model_name is None:
             args.model_name = f"{args.wandb_run_name}.pt"
         
@@ -302,68 +305,58 @@ if __name__ == "__main__":
         ),
     )
 
-    train_names, train_labels = pd.read_csv(args.train_file)["name"][:3000], pd.read_csv(args.train_file)["label"][:3000]
-    valid_names, valid_labels = pd.read_csv(args.valid_file)["name"][:300], pd.read_csv(args.valid_file)["label"][:300]
-    test_names, test_labels = pd.read_csv(args.test_file)["name"], pd.read_csv(args.test_file)["label"]
+    label_dict = {}
+    def get_dataset(df):
+        names, node_nums = [], []
+        for name, label, seq in zip(df["name"], df["label"], df["sequence"]):
+            names.append(name)
+            label_dict[name] = label
+            node_nums.append(len(seq))
+        return names, node_nums
+    train_names, train_node_nums = get_dataset(pd.read_csv(args.train_file))
+    valid_names, valid_node_nums = get_dataset(pd.read_csv(args.valid_file))
+    test_names, test_node_nums = get_dataset(pd.read_csv(args.test_file))
     
-    def process_data(name, label):
+    
+    def process_data(name):
         data = torch.load(f"{args.supv_dataset}/{graph_dir.capitalize()}/processed/{name}.pt")
-        data.label = torch.tensor(label).view(1)
-        node_num = data.x.shape[0]
-        return data, node_num
-    
-    
-    def get_dataset(names, labels):
-        datasets, node_nums = [], []
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(process_data, name, label) for name, label in zip(names, labels)]
-            for future in tqdm(as_completed(futures), total=len(names)):
-                graph, node_num = future.result()
-                datasets.append(graph)
-                node_nums.append(node_num)
-        return datasets, node_nums
-    
-    train_dataset, train_node_num = get_dataset(train_names, train_labels)
-    valid_dataset, valid_node_num = get_dataset(valid_names, valid_labels)
-    test_dataset, test_node_num = get_dataset(test_names, test_labels)
-    
-    logger.info("***** Sample Data *****")
-    # sample 3 data
-    for _ in range(3):
-        i = random.randint(0, len(train_dataset)-1)
-        print(f">>> {train_dataset[i]}")
+        data.label = torch.tensor(label_dict[name]).view(1)
+        return data
     
     def collect_fn(batch):
-        return batch
+        batch_data = []
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(process_data, name) for name in batch]
+            for future in as_completed(futures):
+                graph = future.result()
+                batch_data.append(graph)
+        return batch_data
     
     train_dataloader = DataLoader(
-        dataset=train_dataset, num_workers=4, 
+        dataset=train_names, num_workers=4, 
         collate_fn=lambda x: collect_fn(x),
         batch_sampler=BatchSampler(
-            train_dataset,
-            node_num=train_node_num,
+            node_num=train_node_nums,
             max_len=args.max_graph_token_num,
             batch_token_num=args.batch_token_num,
             shuffle=True
             )
         )
     valid_dataloader = DataLoader(
-        dataset=valid_dataset, num_workers=4, 
+        dataset=valid_names, num_workers=4, 
         collate_fn=lambda x: collect_fn(x),
         batch_sampler=BatchSampler(
-            valid_dataset,
-            node_num=valid_node_num,
+            node_num=valid_node_nums,
             max_len=args.max_graph_token_num,
             batch_token_num=args.batch_token_num,
             shuffle=False
             )
         )
     test_dataloader = DataLoader(
-        dataset=test_dataset, num_workers=4, 
+        dataset=test_names, num_workers=4, 
         collate_fn=lambda x: collect_fn(x),
         batch_sampler=BatchSampler(
-            test_dataset,
-            node_num=test_node_num,
+            node_num=test_node_nums,
             max_len=args.max_graph_token_num,
             batch_token_num=args.batch_token_num,
             shuffle=False
@@ -383,7 +376,8 @@ if __name__ == "__main__":
         param.requires_grad = False
     for param in gnn_model.parameters():
         param.requires_grad = False
-    optimizer = torch.optim.Adam(
+    print(param_num(protssn_classification))
+    optimizer = torch.optim.AdamW(
         protssn_classification.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
 
@@ -401,8 +395,8 @@ if __name__ == "__main__":
         json.dump(vars(args), f, ensure_ascii=False)
     
     logger.info("***** Running training *****")
-    logger.info("  Num train examples = %d", len(train_dataset))
-    logger.info("  Num valid examples = %d", len(valid_dataset))
+    logger.info("  Num train examples = %d", len(train_names))
+    logger.info("  Num valid examples = %d", len(valid_names))
     logger.info("  Num Epochs = %d", args.num_train_epochs)
     logger.info("  Batch token num = %d", args.batch_token_num)
     

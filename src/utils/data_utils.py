@@ -3,7 +3,7 @@ import torch.utils.data as data
 
 
 class BatchSampler(data.Sampler):
-    def __init__(self, dataset, node_num=None, max_len=5000, batch_token_num=3096, shuffle=True):
+    def __init__(self, dataset=None, node_num=None, max_len=5000, batch_token_num=3096, shuffle=True):
         if node_num is None:
             self.node_num = [d.x.shape[0] for d in dataset]
         else:
