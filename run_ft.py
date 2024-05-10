@@ -108,17 +108,13 @@ class EpochRunner:
         self.args = steprunner.args
 
     def __call__(self, dataloader):
-        loop = tqdm(enumerate(dataloader), total=len(dataloader), file=sys.stdout)
+        loop = tqdm(dataloader, total=len(dataloader), file=sys.stdout)
         total_loss = 0
-        for step, batch in loop:
-            step += 1
+        for batch in loop:
             step_loss, model, metrics_dict = self.steprunner(batch)
             step_log = dict({f"{self.stage}/loss": round(step_loss, 3)})
             if self.args.wandb and self.stage == "train":
-                wandb.log(
-                    {f"{self.stage}/loss": step_loss}, 
-                    step=step + (self.args.epoch_idx -1) * len(dataloader)
-                )
+                wandb.log({f"{self.stage}/loss": step_loss})
             loop.set_postfix(**step_log)
             total_loss += step_loss
         
