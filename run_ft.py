@@ -114,7 +114,7 @@ class EpochRunner:
             step_loss, model, metrics_dict = self.steprunner(batch)
             step_log = dict({f"{self.stage}/loss": round(step_loss, 3)})
             if self.args.wandb and self.stage == "train":
-                wandb.log({f"{self.stage}/loss": step_loss})
+                wandb.log({f"train/loss": step_loss, "train/epoch": self.args.epoch_idx})
             loop.set_postfix(**step_log)
             total_loss += step_loss
         
