@@ -86,8 +86,11 @@ def extract_seq_from_pdb(pdb_file, chain=None):
     return seq
 
 class BatchSampler(data.Sampler):
-    def __init__(self, dataset, max_len=5000, batch_token_num=3096, shuffle=True):
-        self.node_num = [d.x.shape[0] for d in dataset]
+    def __init__(self, dataset=None, node_num=None, max_len=5000, batch_token_num=3096, shuffle=True):
+        if node_num is None:
+            self.node_num = [d.x.shape[0] for d in dataset]
+        else:
+            self.node_num = node_num
         self.idx = [i for i in range(len(self.node_num))  
                         if self.node_num[i] <= max_len]
         self.shuffle = shuffle

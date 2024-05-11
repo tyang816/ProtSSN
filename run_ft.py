@@ -26,7 +26,7 @@ from accelerate import Accelerator
 from torchmetrics.classification import Accuracy
 from src.models import ProtssnClassification, PLM_model, GNN_model
 from src.utils.data_utils import BatchSampler
-from src.utils.utils import param_num
+from src.utils.utils import param_num, total_param_num
 from src.dataset.supervise_dataset import SuperviseDataset
 from src.utils.dataset_utils import NormalizeProtein
 
@@ -372,7 +372,8 @@ if __name__ == "__main__":
         param.requires_grad = False
     for param in gnn_model.parameters():
         param.requires_grad = False
-    print(param_num(protssn_classification))
+    logger.info(total_param_num(protssn_classification))
+    logger.info(param_num(protssn_classification))
     optimizer = torch.optim.AdamW(
         protssn_classification.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )

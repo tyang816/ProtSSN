@@ -20,6 +20,14 @@ def param_num(model):
     total = sum([param.numel() for param in model.parameters() if param.requires_grad])
     num_M = total/1e6
     if num_M >= 1000:
+        return "Number of trainable parameter: %.2fB" % (num_M/1e3)
+    else:
+        return "Number of trainable parameter: %.2fM" % (num_M)
+
+def total_param_num(model):
+    total = sum([param.numel() for param in model.parameters()])
+    num_M = total/1e6
+    if num_M >= 1000:
         return "Number of parameter: %.2fB" % (num_M/1e3)
     else:
         return "Number of parameter: %.2fM" % (num_M)
