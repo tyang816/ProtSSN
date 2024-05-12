@@ -204,22 +204,23 @@ def train_model(args, model,
         if args.patience > 0 and len(arr_scores) - best_score_idx > args.patience:
             print(f">>> {monitor} without improvement in {args.patience} epoch, early stopping")
             break
-        
-        # 4，test -------------------------------------------------
-        if test_data:
-            test_step_runner = StepRunner(
-                args=args, stage="test", model=model, 
-                loss_fn=loss_fn, accelerator=accelerator,
-                metrics_dict=deepcopy(metrics_dict), 
-                optimizer=optimizer, scheduler=scheduler
-                )
-            test_epoch_runner = EpochRunner(test_step_runner)
-            with torch.no_grad():
-                model, epoch_metric_results = test_epoch_runner(test_data)
-            for name, metric in epoch_metric_results.items():
-                print(f">>> Epoch {epoch} {name}: {'%.3f'%metric}")
-            if args.wandb:
-                wandb.log({name: metric for name, metric in epoch_metric_results.items()})
+    
+    # 4，test -------------------------------------------------
+    if test_data:
+        model.pooling_head.load_state_dict(torch.load(model_path['state_dict']))
+        test_step_runner = StepRunner(
+            args=args, stage="test", model=model, 
+            loss_fn=loss_fn, accelerator=accelerator,
+            metrics_dict=deepcopy(metrics_dict), 
+            optimizer=optimizer, scheduler=scheduler
+            )
+        test_epoch_runner = EpochRunner(test_step_runner)
+        with torch.no_grad():
+            model, epoch_metric_results = test_epoch_runner(test_data)
+        for name, metric in epoch_metric_results.items():
+            print(f">>> Epoch {epoch} {name}: {'%.3f'%metric}")
+        if args.wandb:
+            wandb.log({name: metric for name, metric in epoch_metric_results.items()})
 
 
 def create_parser():
