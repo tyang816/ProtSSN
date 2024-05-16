@@ -5,8 +5,10 @@ import yaml
 import warnings
 import argparse
 import numpy as np
+import pandas as pd
 import torch.nn.functional as F
 import scipy.spatial as spa
+from tqdm import tqdm
 from torch_geometric.data import Data
 from scipy.special import softmax
 from Bio.PDB import PDBParser, ShrakeRupley
@@ -391,6 +393,8 @@ if __name__ == '__main__':
     
     # dataset config
     parser.add_argument("--pdb_file", type=str, default=None, help="pdb file path")
+    parser.add_argument("--pdb_dir", type=str, default=None, help="pdb file directory")
+    parser.add_argument("--out_file", type=str, default=None, help="output file path")
     
     args = parser.parse_args()
     
@@ -409,11 +413,20 @@ if __name__ == '__main__':
         plm_model=plm_model, gnn_model=gnn_model
     )
     
-    logits = protssn.compute_logits(args.pdb_file)
-    print(logits, logits.shape)
-    ppl = protssn.compute_perplexity(args.pdb_file)
-    print(ppl)
-    embeds = protssn.compute_embedding(args.pdb_file)
-    print(embeds.shape)
+    if args.pdb_file:
+        logits = protssn.compute_logits(args.pdb_file)
+        print(logits, logits.shape)
+        ppl = protssn.compute_perplexity(args.pdb_file)
+        print(ppl)
+        embeds = protssn.compute_embedding(args.pdb_file)
+        print(embeds.shape)
     
-    
+    if args.pdb_dir:
+        pdb_files = sorted(os.listdir(args.pdb_dir))
+        ppl_info = {"name": [], "ppl": []}
+        for pdb_file in tqdm(pdb_files):
+            pdb_file = os.path.join(args.pdb_dir, pdb_file)
+            ppl = protssn.compute_perplexity(pdb_file)
+            ppl_info["name"].append(pdb_file.split("/")[-1])
+            ppl_info["ppl"].append(ppl)
+        pd.DataFrame(ppl_info).to_csv(args.out_file, index=False)
