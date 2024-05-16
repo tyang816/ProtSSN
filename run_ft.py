@@ -118,9 +118,11 @@ class EpochRunner:
             loop.set_postfix(**step_log)
             total_loss += step_loss
         
-        for name, metric_fn in metrics_dict.items():
-            epoch_metric_results = {f"{self.stage}/{name}": metric_fn.compute().item()}
-            metric_fn.reset()
+        epoch_metric_results = {}
+        if self.stage != "train":
+            for name, metric_fn in metrics_dict.items():
+                epoch_metric_results = {f"{self.stage}/{name}": metric_fn.compute().item()}
+                metric_fn.reset()
         avg_loss = total_loss / len(dataloader)
         epoch_metric_results[f"{self.stage}/epoch_loss"] = avg_loss
         return model, epoch_metric_results
@@ -230,6 +232,7 @@ def create_parser():
     parser.add_argument("--gnn_config", type=str, default="src/config/egnn.yaml", help="gnn config")
     parser.add_argument("--gnn_hidden_dim", type=int, default=512, help="hidden size of gnn")
     parser.add_argument("--plm", type=str, default="facebook/esm2_t33_650M_UR50D", help="esm param number")
+    parser.add_argument("--gnn_model_path", type=str, default="", help="gnn model path")
     parser.add_argument("--plm_hidden_size", type=int, default=1280, help="hidden size of plm")
     parser.add_argument("--pooling_method", type=str, default="mean", help="pooling method")
     parser.add_argument("--pooling_dropout", type=float, default=0.1, help="pooling dropout")
@@ -255,7 +258,6 @@ def create_parser():
     parser.add_argument("--valid_file", type=str, help="valid label file")
     parser.add_argument("--test_file", type=str, help="test label file")
     parser.add_argument("--c_alpha_max_neighbors", type=int, default=10, help="graph dataset K")
-    parser.add_argument("--gnn_model_path", type=str, default="", help="gnn model path")
     
     # save model
     parser.add_argument("--model_dir", type=str, default="model", help="model save dir")
