@@ -235,6 +235,7 @@ class EGNN_Sparse(MessagePassing):
         hidden_out, coors_out = self.propagate(edge_index, x=feats, edge_attr=edge_attr_feats,
                                                            coors=coors, rel_coors=rel_coors, 
                                                            batch=batch)
+        print(hidden_out.shape, coors_out.shape)
         return torch.cat([coors_out, hidden_out], dim=-1)
 
 

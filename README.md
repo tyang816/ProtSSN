@@ -46,6 +46,7 @@ We recommend that the `torch_geometric` should been updated to 2.3 or higher.
 ```shell
 conda env create -f environment.yaml
 conda activate protssn
+pip install torch_scatter torch_sparse torch_cluster -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
 ```
 
 ### Hardware
