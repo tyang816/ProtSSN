@@ -5,7 +5,7 @@ pooling_method=attention1d
 dataset_dir=data/finetune_example/PDBSol
 pdb_dir_name=esmfold_pdb
 # where to save your fine-tuned model
-output_model_dir=result/debug/protssn_k"$K"_h"$H"
+output_model_dir=result/PDBSol/protssn_k"$K"_h"$H"
 output_model_name=protssn_"$pooling_method".pt
 CUDA_VISIBLE_DEVICES=0 python run_ft.py \
     --gnn_hidden_dim $H \
@@ -19,6 +19,9 @@ CUDA_VISIBLE_DEVICES=0 python run_ft.py \
     --train_file train.csv \
     --valid_file valid.csv \
     --test_file test.csv \
+    --metrics acc,mcc \
+    --monitor valid/acc \
+    --monitor_mode max \
     --c_alpha_max_neighbors $K \
     --learning_rate 1e-4 \
     --num_train_epochs 10 \

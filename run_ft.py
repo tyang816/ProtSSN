@@ -23,7 +23,9 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from accelerate.utils import set_seed
 from accelerate import Accelerator
-from torchmetrics.classification import Accuracy
+from torchmetrics.classification import Accuracy, Recall, Precision, MatthewsCorrCoef, AUROC, F1Score, MatthewsCorrCoef
+from torchmetrics.classification import BinaryAccuracy, BinaryRecall, BinaryAUROC, BinaryF1Score, BinaryPrecision, BinaryMatthewsCorrCoef, BinaryF1Score
+from torchmetrics.regression import SpearmanCorrCoef
 from src.models import ProtssnClassification, PLM_model, GNN_model
 from src.utils.data_utils import BatchSampler
 from src.utils.utils import param_num, total_param_num
@@ -66,7 +68,12 @@ class StepRunner:
             with self.accelerator.accumulate(self.model):
                 logits = self.model(batch).cuda()
                 label = torch.cat([data.label for data in batch]).to(logits.device)
-                loss = self.loss_fn(logits, label)
+                if self.args.problem_type == 'regression' and self.args.num_labels == 1:
+                    loss = loss_fn(logits.squeeze(), label.squeeze())
+                elif self.args.problem_type == 'multi_label_classification':
+                    loss = loss_fn(logits, label.float())
+                else:
+                    loss = loss_fn(logits, label)
                 self.accelerator.backward(loss)
                 if self.accelerator.sync_gradients and self.args.max_grad_norm is not None:
                     self.accelerator.clip_grad_norm_(self.model.pooling_head.parameters(), self.args.max_grad_norm)
@@ -77,12 +84,22 @@ class StepRunner:
         else:
             logits = self.model(batch).cuda()
             label = torch.cat([data.label for data in batch]).to(logits.device)
-            loss = self.loss_fn(logits, label)
+            if self.args.problem_type == 'regression' and self.args.num_labels == 1:
+                loss = loss_fn(logits.squeeze(), label.squeeze())
+            elif self.args.problem_type == 'multi_label_classification':
+                loss = loss_fn(logits, label.float())
+            else:
+                loss = loss_fn(logits, label)
         
         # compute metrics
         if self.metrics_dict and self.stage != "train":
             for name, metric_fn in self.metrics_dict.items():
-                metric_fn.update(logits, label)
+                if self.args.problem_type == 'regression' and self.args.num_labels == 1:
+                    metric_fn(logits.squeeze(), label.squeeze())
+                elif self.args.problem_type == 'multi_label_classification':
+                    metric_fn(logits, label)
+                else:
+                    metric_fn(torch.argmax(logits, 1), label)
         return loss.item(), self.model, self.metrics_dict
 
     def train_step(self, batch):
@@ -121,10 +138,10 @@ class EpochRunner:
         epoch_metric_results = {}
         if self.stage != "train":
             for name, metric_fn in metrics_dict.items():
-                epoch_metric_results = {f"{self.stage}/{name}": metric_fn.compute().item()}
+                epoch_metric_results[f"{self.stage}/{name}"] = metric_fn.compute().item()
                 metric_fn.reset()
         avg_loss = total_loss / len(dataloader)
-        epoch_metric_results[f"{self.stage}/epoch_loss"] = avg_loss
+        epoch_metric_results[f"{self.stage}/loss"] = avg_loss
         return model, epoch_metric_results
 
 def train_model(args, model, 
@@ -258,6 +275,9 @@ def create_parser():
     parser.add_argument("--train_file", type=str, help="train label file")
     parser.add_argument("--valid_file", type=str, help="valid label file")
     parser.add_argument("--test_file", type=str, help="test label file")
+    parser.add_argument('--metrics', type=str, default=None, help='computation metrics')
+    parser.add_argument('--monitor', type=str, default='valid/loss', help='monitor metrics')
+    parser.add_argument('--monitor_mode', type=str, default='min', help='monitor mode')
     parser.add_argument("--c_alpha_max_neighbors", type=int, default=10, help="graph dataset K")
     
     # save model
@@ -373,7 +393,12 @@ if __name__ == "__main__":
     gnn_model.load_state_dict(torch.load(args.gnn_model_path))
     protssn_classification = ProtssnClassification(args, plm_model, gnn_model)
     protssn_classification.to(device)
-    loss_fn = torch.nn.CrossEntropyLoss()
+    if args.problem_type == "single_label_classification":
+        loss_fn = torch.nn.CrossEntropyLoss()
+    elif args.problem_type == "regression":
+        loss_fn = nn.MSELoss()
+    elif args.problem_type == "multi_label_classification":
+        loss_fn = nn.BCEWithLogitsLoss()
     
     for param in plm_model.parameters():
         param.requires_grad = False
@@ -390,9 +415,46 @@ if __name__ == "__main__":
     protssn_classification, optimizer, train_dataloader, valid_dataloader, test_dataloader = accelerator.prepare(
         protssn_classification, optimizer, train_dataloader, valid_dataloader, test_dataloader
     )
-    metrics_dict = {
-        "acc": Accuracy(task="multiclass", num_classes=args.num_labels).to(device)
-    }
+    
+    metrics_dict = {}
+    metrics_names = args.metrics.split(',')
+    for m in metrics_names:
+        if m == 'acc':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryAccuracy()
+            else:
+                metrics_dict[m] = Accuracy(task="multiclass", num_classes=args.num_labels)
+        elif m == 'recall':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryRecall()
+            else:
+                metrics_dict[m] = Recall(task="multiclass", num_classes=args.num_labels)
+        elif m == 'precision':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryPrecision()
+            else:
+                metrics_dict[m] = Precision(task="multiclass", num_classes=args.num_labels)
+        elif m == 'f1':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryF1Score()
+            else:
+                metrics_dict[m] = F1Score(task="multiclass", num_classes=args.num_labels)
+        elif m == 'mcc':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryMatthewsCorrCoef()
+            else:
+                metrics_dict[m] = MatthewsCorrCoef(task="multiclass", num_classes=args.num_labels)
+        elif m == 'auc':
+            if args.num_labels == 2:
+                metrics_dict[m] = BinaryAUROC()
+            else:
+                metrics_dict[m] = AUROC(task="multiclass", num_classes=args.num_labels)
+        elif m == 'spearman_corr':
+            metrics_dict[m] = SpearmanCorrCoef()
+        else:
+            raise ValueError(f"Invalid metric: {m}")
+    for metric_name, metric in metrics_dict.items():
+        metric.to(device)
     
     os.makedirs(args.output_model_dir, exist_ok=True)    
     with open(os.path.join(args.output_model_dir, "config.json"), 'w', encoding='utf-8') as f:
@@ -416,7 +478,7 @@ if __name__ == "__main__":
         optimizer=optimizer, scheduler=scheduler, loss_fn=loss_fn, 
         accelerator=accelerator, metrics_dict=metrics_dict, 
         train_data=train_dataloader, valid_data=valid_dataloader, test_data=test_dataloader,
-        monitor="valid/acc", mode="max"
+        monitor=args.monitor, mode=args.monitor_mode
         )
     if args.wandb:
         wandb.finish()    
