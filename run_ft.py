@@ -134,10 +134,10 @@ def train_model(args, model,
                 monitor="valid/loss", mode="min"):
     history = {}
     start_epoch = 1
-    model_path = os.path.join(args.model_dir, args.model_name)
+    model_path = os.path.join(args.output_model_dir, args.output_model_name)
     logger.info("***** Running training *****")
     if args.auto_continue_train:
-        history_df = pd.read_csv(os.path.join(args.model_dir, "history.csv"))
+        history_df = pd.read_csv(os.path.join(args.output_model_dir, "history.csv"))
         names = history_df.columns
         model.pooling_head.load_state_dict(torch.load(model_path)["state_dict"])
         if args.epoch_idx:
@@ -201,7 +201,7 @@ def train_model(args, model,
             print(f">>> reach best {monitor} : {'%.3f'%arr_scores[best_score_idx]}")
         
         history_df = pd.DataFrame(history)
-        history_df.to_csv(os.path.join(args.model_dir, "history.csv"), index=False)
+        history_df.to_csv(os.path.join(args.output_model_dir, "history.csv"), index=False)
         
         if args.patience > 0 and len(arr_scores) - best_score_idx > args.patience:
             print(f">>> {monitor} without improvement in {args.patience} epoch, early stopping")
@@ -209,7 +209,7 @@ def train_model(args, model,
     
     # 4，test -------------------------------------------------
     if test_data:
-        model.pooling_head.load_state_dict(torch.load(model_path['state_dict']))
+        model.pooling_head.load_state_dict(torch.load(model_path)['state_dict'])
         test_step_runner = StepRunner(
             args=args, stage="test", model=model, 
             loss_fn=loss_fn, accelerator=accelerator,
@@ -252,16 +252,17 @@ def create_parser():
     
     # dataset
     parser.add_argument("--num_labels", type=int, help="number of labels")
-    parser.add_argument("--problem_type", type=str, default="classification", help="classification or regression")
+    parser.add_argument("--problem_type", type=str, default="single_label_classification", help="classification or regression")
     parser.add_argument("--supv_dataset", type=str, help="supervise protein dataset")
+    parser.add_argument('--pdb_dir_name', type=str, default="esmfold_pdb", help="pdb dir name")
     parser.add_argument("--train_file", type=str, help="train label file")
     parser.add_argument("--valid_file", type=str, help="valid label file")
     parser.add_argument("--test_file", type=str, help="test label file")
     parser.add_argument("--c_alpha_max_neighbors", type=int, default=10, help="graph dataset K")
     
     # save model
-    parser.add_argument("--model_dir", type=str, default="model", help="model save dir")
-    parser.add_argument("--model_name", type=str, default=None, help="model name")
+    parser.add_argument("--output_model_dir", type=str, default="model", help="model save dir")
+    parser.add_argument("--output_model_name", type=str, default=None, help="model name")
     
     # log
     parser.add_argument("--wandb", action="store_true", help="use wandb")
@@ -284,15 +285,15 @@ if __name__ == "__main__":
     if args.wandb:
         if args.wandb_run_name is None:
             args.wandb_run_name = f"ProtSSN-task"
-        if args.model_name is None:
-            args.model_name = f"{args.wandb_run_name}.pt"
+        if args.output_model_name is None:
+            args.output_model_name = f"{args.wandb_run_name}.pt"
         
         wandb.init(project=args.wandb_project, name=args.wandb_run_name, config=vars(args))
     
     # load dataset
     logger.info("***** Loading Dataset *****")
     datatset_name = args.supv_dataset.split("/")[-1]
-    pdb_dir = f"{args.supv_dataset}/esmfold_pdb"
+    pdb_dir = f"{args.supv_dataset}/{args.pdb_dir_name}"
     graph_dir = f"{datatset_name}_k{args.c_alpha_max_neighbors}"
     supervise_dataset = SuperviseDataset(
         root=args.supv_dataset,
@@ -312,6 +313,9 @@ if __name__ == "__main__":
             label_dict[name] = label
             node_nums.append(len(seq))
         return names, node_nums
+    args.train_file = f"{args.supv_dataset}/train.csv"
+    args.valid_file = f"{args.supv_dataset}/valid.csv"
+    args.test_file = f"{args.supv_dataset}/test.csv"
     train_names, train_node_nums = get_dataset(pd.read_csv(args.train_file))
     valid_names, valid_node_nums = get_dataset(pd.read_csv(args.valid_file))
     test_names, test_node_nums = get_dataset(pd.read_csv(args.test_file))
@@ -390,8 +394,8 @@ if __name__ == "__main__":
         "acc": Accuracy(task="multiclass", num_classes=args.num_labels).to(device)
     }
     
-    os.makedirs(args.model_dir, exist_ok=True)    
-    with open(os.path.join(args.model_dir, "config.json"), 'w', encoding='utf-8') as f:
+    os.makedirs(args.output_model_dir, exist_ok=True)    
+    with open(os.path.join(args.output_model_dir, "config.json"), 'w', encoding='utf-8') as f:
         json.dump(vars(args), f, ensure_ascii=False)
     
     logger.info("***** Running training *****")
