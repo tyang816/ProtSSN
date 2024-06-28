@@ -138,6 +138,12 @@ data/DDG/*
 data/DTM/*
 !data/DTM/DATASET/
 !data/DTM/README.md
+
+!data/finetune_example/
+data/finetune_example/PDBSol/Pdbsol_k10/
+data/finetune_example/PDBSol/Pdbsol_k20/
+data/finetune_example/PDBSol/Pdbsol_k30/
+
 result/
 *.ipynb
 *.gz
