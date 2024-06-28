@@ -142,6 +142,33 @@ python src/build_sav.py -d data/mutant_example/no_exp
 # output: A0A5J4FAY1_MICAE contains 14193
 ```
 
+## Fine-tuning on Downstream Tasks
+
+### How to Fine-tune ProtSSN
+
+We provide how to fine-tune ProtSSN models on downstream tasks.
+
+1. You could prepare your own dataset formation in [`data/finetune_example`](https://github.com/tyang816/ProtSSN/tree/master/data/finetune_example), the CSV file which contains **label** and corresponding **pdb files** are essential.
+2. You can follow the [`script/run_ft.sh`](https://github.com/tyang816/ProtSSN/blob/master/script/run_ft.sh) to fine-tune the ProtSSN model, we recommend the setting of **k20_512**.
+
+### Find More Datasets
+
+For more downstream task dataset we recommend to use the datasets from `SES-Adapter` which we collect lots of dataset, such as EC, GO, MetalIonBinding, ProtSolM and other datasets with their pdb files, .
+
+1. PDB files can be downloaded at https://huggingface.co/datasets/tyang816/ProtFactory-PDB/tree/main.
+2. Please see my [huggingface site](https://huggingface.co/tyang816) to get task CSV files.
+
+If you use the additional datasets we prepare, please cite the SES-Adapter, thanks!
+
+```shell
+@article{tan2024simple,
+  title={Simple, efficient and scalable structure-aware adapter boosts protein language models},
+  author={Tan, Yang and Li, Mingchen and Zhou, Bingxin and Zhong, Bozitao and Zheng, Lirong and Tan, Pan and Zhou, Ziyi and Yu, Huiqun and Fan, Guisheng and Hong, Liang},
+  journal={arXiv preprint arXiv:2404.14850},
+  year={2024}
+}
+```
+
 ## 🔬 Get Embeddings for Analysis
 
 Perhaps you need protein embeddings for evolutionary or other direction analysis.
