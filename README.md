@@ -164,6 +164,10 @@ python src/build_sav.py -d data/mutant_example/no_exp
 # output: A0A5J4FAY1_MICAE contains 14193
 ```
 
+If you want to use ProtSSN for higher-level mutations, we recommend that you use a method that considers both rational design and AI design.
+
+At the same time, the mutant column of the CSV or TSV data should be split by ":", for example, "M1V:A2V".
+
 ## 🤖 Fine-tuning on Downstream Tasks
 
 ### How to Fine-tune ProtSSN
