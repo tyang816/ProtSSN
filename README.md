@@ -1,5 +1,31 @@
 # Semantical and Topological Protein Encoding Toward Enhanced Bioactivity and Thermostability
 
+- [Semantical and Topological Protein Encoding Toward Enhanced Bioactivity and Thermostability](#semantical-and-topological-protein-encoding-toward-enhanced-bioactivity-and-thermostability)
+  - [🚀 Introduction (ProtSSN)](#-introduction-protssn)
+  - [📑 Results](#-results)
+    - [News](#news)
+    - [Downloads](#downloads)
+    - [Paper Results](#paper-results)
+  - [🛫 Requirement](#-requirement)
+    - [Conda Enviroment](#conda-enviroment)
+    - [Hardware](#hardware)
+  - [🧬 Zero-shot Prediction for Mutants](#-zero-shot-prediction-for-mutants)
+    - [Download Pre-trained Checkpoints](#download-pre-trained-checkpoints)
+    - [Prepare Your Own Dataset](#prepare-your-own-dataset)
+    - [Test on Your Own Dataset](#test-on-your-own-dataset)
+    - [Directed Evolution for Proteins Without Experimental Data](#directed-evolution-for-proteins-without-experimental-data)
+  - [🤖 Fine-tuning on Downstream Tasks](#-fine-tuning-on-downstream-tasks)
+    - [How to Fine-tune ProtSSN](#how-to-fine-tune-protssn)
+    - [Find More Datasets](#find-more-datasets)
+  - [🔬 Get Embeddings for Analysis](#-get-embeddings-for-analysis)
+    - [Prepare Your Own Dataset](#prepare-your-own-dataset-1)
+    - [Start Extracting Embeddings](#start-extracting-embeddings)
+  - [✏️ Pre-train From Scratch](#️-pre-train-from-scratch)
+    - [Download Pre-train Dataset](#download-pre-train-dataset)
+    - [Build CATH Graph (optional)](#build-cath-graph-optional)
+    - [Start Training](#start-training)
+  - [🙌 Citation](#-citation)
+
 ## 🚀 Introduction (ProtSSN)
 
 Fusion of protein **sequence and structural** information, using **denoising** pre-training network for **protein engineering** (**zero-shot**). Please note that we do not require MSA or evolutionary information.
@@ -37,11 +63,7 @@ Our model surpasses most MSA methods and almost all language model methods **wit
 
 Please make sure you have installed **[Anaconda3](https://www.anaconda.com/download)** or **[Miniconda3](https://docs.conda.io/projects/miniconda/en/latest/)**.
 
-**If you already have a enviroment.**
-
-We recommend that the `torch_geometric` should been updated to 2.3 or higher.
-
-**If you don't have a enviroment.**
+**Enviroment.**
 
 ```shell
 conda env create -f environment.yaml
@@ -142,7 +164,7 @@ python src/build_sav.py -d data/mutant_example/no_exp
 # output: A0A5J4FAY1_MICAE contains 14193
 ```
 
-## Fine-tuning on Downstream Tasks
+## 🤖 Fine-tuning on Downstream Tasks
 
 ### How to Fine-tune ProtSSN
 
