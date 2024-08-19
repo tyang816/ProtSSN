@@ -43,8 +43,8 @@ We focus on using end-to-end methods for protein directed evolution in zero samp
 
 ### Downloads
 
-- ProteinGym: The pdb files folded by ColabFold 1.5 can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_pdb.tar.gz
-- ProteinGym: The pdb and mutant files in ProtSSN formation can be downloaded from https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/proteingym_v1_sub_pdb_csv.tar.gz
+- ProteinGym: The pdb files folded by ColabFold 1.5 can be downloaded from https://huggingface.co/datasets/tyang816/ProteinGym_v1/resolve/main/ProteinGym_v1_AlphaFold2_PDB.zip
+- ProteinGym: The pdb and mutant files in ProtSSN formation can be downloaded from https://huggingface.co/datasets/tyang816/ProteinGym_v1/resolve/main/ProteinGym_v1_ProtSSN.zip
 - **DTM** and **DDG** dataset can be found in [`data/DTM`](https://github.com/tyang816/ProtSSN/tree/master/data/DTM) and [`data/DDG`](https://github.com/tyang816/ProtSSN/tree/master/data/DDG)
 
 ### Paper Results
@@ -86,30 +86,30 @@ If you only want to only use **one model** for reasoning, we recommend using **k
 
 | # Version | # Param | # Link                                                       |
 | --------- | ------- | ------------------------------------------------------------ |
-| k10_h512  | 148     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k10_h512.pt |
-| k10_h768  | 160     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k10_h768.pt |
-| k10_h1280 | 184     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k10_h1280.pt |
-| k20_h512  | 148     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k20_h512.pt |
-| k20_h768  | 160     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k20_h768.pt |
-| k20_h1280 | 184     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k20_h1280.pt |
-| k30_h512  | 148     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k30_h512.pt |
-| k30_h768  | 160     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k30_h768.pt |
-| k30_h1280 | 184     | https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k30_h1280.pt |
+| k10_h512  | 148     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k10_h512.pt |
+| k10_h768  | 160     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k10_h768.pt |
+| k10_h1280 | 184     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k10_h1280.pt |
+| k20_h512  | 148     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k20_h512.pt |
+| k20_h768  | 160     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k20_h768.pt |
+| k20_h1280 | 184     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k20_h1280.pt |
+| k30_h512  | 148     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k30_h512.pt |
+| k30_h768  | 160     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k30_h768.pt |
+| k30_h1280 | 184     | https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k30_h1280.pt |
 
 ```shell
 mkdir model
 cd model
-wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/model/protssn_k20_h512.pt
+wget https://huggingface.co/tyang816/ProtSSN/resolve/main/protssn_k20_h512.pt
 ```
 
 Ensembling models can achieve better results, and given our lower reasoning costs, you can use **ensemble methods** for zero-shot prediction. 😊
 
-`ProtSSN.tar` contains all the model checkpoints, our **training records** and **configs** can be found in `model/history` and `model/config`.
+`ProtSSN.zip` contains all the model checkpoints, our **training records** and **configs** can be found in `model/history` and `model/config`.
 
 ```shell
-wget https://lianglab.sjtu.edu.cn/files/ProtSSN-2024/ProtSSN.model.tar
-tar -xvf ProtSSN.model.tar
-rm ProtSSN.model.tar
+wget https://huggingface.co/tyang816/ProtSSN/resolve/main/ProtSSN.zip
+unzip ProtSSN.zip
+rm ProtSSN.zip
 ```
 
 ### Prepare Your Own Dataset
@@ -187,7 +187,7 @@ For more downstream task dataset we recommend to use the datasets from `SES-Adap
 If you use the additional datasets we prepare, please cite the SES-Adapter, thanks!
 
 ```shell
-@article{tan2024simple,
+@article{tan2024ses-adapter,
   title={Simple, efficient and scalable structure-aware adapter boosts protein language models},
   author={Tan, Yang and Li, Mingchen and Zhou, Bingxin and Zhong, Bozitao and Zheng, Lirong and Tan, Pan and Zhou, Ziyi and Yu, Huiqun and Fan, Guisheng and Hong, Liang},
   journal={arXiv preprint arXiv:2404.14850},
