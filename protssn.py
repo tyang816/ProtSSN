@@ -392,6 +392,7 @@ if __name__ == '__main__':
     parser.add_argument("--c_alpha_max_neighbors", type=int, default=10, help="graph dataset K")
     
     # dataset config
+    parser.add_argument("--out_type", type=str, nargs='+', default="embed", help="logits, ppl, or embed")
     parser.add_argument("--pdb_file", type=str, default=None, help="pdb file path")
     parser.add_argument("--pdb_dir", type=str, default=None, help="pdb file directory")
     parser.add_argument("--out_file", type=str, default=None, help="output file path")
@@ -413,6 +414,9 @@ if __name__ == '__main__':
         plm_model=plm_model, gnn_model=gnn_model
     )
     
+    if type(args.out_type) == str:
+        args.out_type = [args.out_type]
+    
     if args.pdb_file:
         logits = protssn.compute_logits(args.pdb_file)
         print(logits, logits.shape)
@@ -421,12 +425,27 @@ if __name__ == '__main__':
         embeds = protssn.compute_embedding(args.pdb_file)
         print(embeds.shape)
     
+    
     if args.pdb_dir:
-        pdb_files = sorted(os.listdir(args.pdb_dir))
-        ppl_info = {"name": [], "ppl": []}
+        pdb_files = sorted(os.listdir(args.pdb_dir))[9900:]
+        save_info = {"name": []}
+        if 'logits' in args.out_type:
+            save_info["logits"] = []
+        if 'embed' in args.out_type:
+            save_info["embed"] = []
+        if 'ppl' in args.out_type:
+            save_info["ppl"] = []
+            
         for pdb_file in tqdm(pdb_files):
             pdb_file = os.path.join(args.pdb_dir, pdb_file)
-            ppl = protssn.compute_perplexity(pdb_file)
-            ppl_info["name"].append(pdb_file.split("/")[-1])
-            ppl_info["ppl"].append(ppl)
-        pd.DataFrame(ppl_info).to_csv(args.out_file, index=False)
+            save_info["name"].append(pdb_file)
+            if 'logits' in args.out_type:
+                logits = protssn.compute_logits(pdb_file)
+                save_info["logits"].append(logits)
+            if 'embed' in args.out_type:
+                embed = protssn.compute_embedding(pdb_file, reduction='mean')
+                save_info["embed"].append(embed)
+            if 'ppl' in args.out_type:
+                ppl = protssn.compute_perplexity(pdb_file)
+                save_info["ppl"].append(ppl)
+        torch.save(save_info, args.out_file)
