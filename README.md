@@ -26,7 +26,7 @@
     - [Start Training](#start-training)
   - [🙌 Citation](#-citation)
 
-## 🚀 Introduction (ProtSSN)
+## 🚀 Introduction (Venus-ProtSSN/ ProtSSN)
 
 Fusion of protein **sequence and structural** information, using **denoising** pre-training network for **protein engineering** (**zero-shot**). Please note that we do not require MSA or evolutionary information.
 
